@@ -26,6 +26,7 @@ dependencies:
 - turtle
 - hscolour
 - pretty-show
+- pretty-simple
 
 library:
   source-dirs: src
