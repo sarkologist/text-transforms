@@ -41,8 +41,6 @@ packages:
 #   commit: e7b331f14bcffb8367cd58fbfc8b40ec7642100a
 #
 extra-deps:
-  - git: ../haquery
-    commit: 0388c5d9251a9e49f018d5e8db3eb070d23254d0
   - taggy-lens-0.1.2@sha256:091ca81d02bd3d7fb493dce0148e1a38f25eb178a1ebd751043a23239e5e3265,3009
     #- taggy-0.2.1@sha256:7bc55ddba178971dc6052163597f0445a0a2b5b0ca0e84ce651d53d722e3c265,4662
   - git: https://github.com/sarkologist/taggy.git
