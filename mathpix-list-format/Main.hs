@@ -34,7 +34,7 @@ blockMath = do
 contents = manyTill (fmap Math blockMath <|> fmap Line line) endOfInput
 
 asHtml :: (Monad m, Term (HtmlT m ()) result) => Content String -> result
-asHtml (Math ls) = ul_ $ li_ $ do
+asHtml (Math ls) = ul_ $ li_ $ pre_ $ do
   "$$"
   sequence (intersperse (br_ []) . map toHtml $ ls)
   "$$"
