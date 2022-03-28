@@ -19,26 +19,40 @@ import Lucid
 import Turtle as T (stdin, lineToText, inproc, die, empty, fold)
 
 getText = T.fold stdin (F.foldMap (\l -> lineToText l <> "\n") id)
+getTextFromClipboard :: IO T.Text
+getTextFromClipboard = T.fold (inproc "pbpaste" [] empty) (F.foldMap (\l -> lineToText l <> "\n") id)
 
-data Content a = Line a | Math [a] deriving Show
+data Content a = Line [LineElement a] | Math [a] deriving Show
+data LineElement a = TextElement a | InlineMath a deriving Show
 
-lineContent = many' (notChar '\n')
+many1Till p x = (:) <$> p <*> manyTill p x
 
-line = lineContent <* endOfLine <|> lineContent
+pureLineContent = manyTill (notChar '$') (char '\n')
+lineContentWithMath = (:) <$> fmap TextElement (many1Till (notChar '$') (char '$')) <*> inlineMathContents
+inlineMath = char '$' *> inlineMathContents
+inlineMathContents = ((:[]) . InlineMath) <$> many1Till (notChar '$') (char '$')
+
+line = fmap mconcat (many1Till l endOfLine <|> many l)
+  where l = (lineContentWithMath <|> inlineMath) <|> fmap ((:[]) . TextElement) pureLineContent
+
+blockMathLine = pureLineContent <* endOfLine <|> pureLineContent
 
 blockMath = do
   string "$$"
   endOfLine
-  manyTill line (string "$$")
+  manyTill blockMathLine (string "$$")
 
 contents = manyTill (fmap Math blockMath <|> fmap Line line) endOfInput
 
 asHtml :: (Monad m, Term (HtmlT m ()) result) => Content String -> result
-asHtml (Math ls) = ul_ $ li_ $ pre_ $ do
+asHtml (Math ls) = li_ $ pre_ $ do
   "$$"
   sequence (intersperse (br_ []) . map toHtml $ ls)
   "$$"
-asHtml (Line l) = li_ (toHtml l)
+asHtml (Line l) = li_ (toHtml . foldMap convert $ l)
+  where
+    convert (TextElement e) = e
+    convert (InlineMath e) = "$" <> e <> "$"
 
 formatList :: (Monad m, Term (HtmlT m ()) result) => [Content String] -> result
 formatList ls = ul_ (mapM_ asHtml ls)
