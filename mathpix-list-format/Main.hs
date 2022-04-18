@@ -52,7 +52,7 @@ asHtml (Math ls) = li_ $ pre_ $ do
 asHtml (Line l) = li_ (toHtml . foldMap convert $ l)
   where
     convert (TextElement e) = e
-    convert (InlineMath e) = "$" <> e <> "$"
+    convert (InlineMath e) = "$$" <> e <> "$$"
 
 formatList :: (Monad m, Term (HtmlT m ()) result) => [Content String] -> result
 formatList ls = ul_ (mapM_ asHtml ls)
