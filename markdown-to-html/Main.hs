@@ -22,7 +22,8 @@ import Turtle as T (stdin, lineToText, inproc, die, empty, fold)
 getText = T.fold stdin (F.foldMap (\l -> lineToText l <> "\n") id)
 
 data Content a = Content [Item a] deriving Show
-data Item a = Markdown a | InlineMath a | BlockMath a deriving Show
+data Item a = Markdown [MarkdownItem a] | InlineMath a | BlockMath a deriving Show
+data MarkdownItem a = Unmarked a | Italic a | Bold a deriving Show
 
 many1Until p end = (:) <$> p <*> manyTill p (() <$ lookAhead end <|> endOfInput)
 
@@ -31,7 +32,11 @@ between delim = within delim delim
 
 alternating p q = ((:) <$> p <*> alternating q p) <|> pure []
 
-markdown = Markdown <$> many1Until (notChar '$') (char '$')
+markdown = Markdown <$> many1Until (choice [unmarked, bold, italic]) (char '$')
+
+unmarked = Unmarked <$> many1Until (satisfy (notInClass "$*")) (satisfy (inClass "$*"))
+bold = Bold <$> between (string "**") (notChar '*')
+italic = Italic <$> between (char '*') (notChar '*')
 
 inlineMath = InlineMath <$> between (char '$') (notChar '$')
 blockMath = BlockMath <$> between (string "$$") (notChar '$')
