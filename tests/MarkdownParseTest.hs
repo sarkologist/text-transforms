@@ -15,6 +15,8 @@ test_individual =
   [
     testCase "unmarked" $
       parse (unmarked "") "" "abc" @?= Right (Unmarked "abc")
+  , testCase "newline" $
+      parse newlineMarkdown "" "\n" @?= Right (Newline "\n")
   , testCase "unmarked only" $
       parse (unmarked "*") "" "abc*i*" @?= Right (Unmarked "abc")
   , testCase "italic" $
@@ -37,6 +39,15 @@ test_complex =
       [
         testCase "non-greedy" $
           parse (unmarked "*" *> italic) "" "abc *i*" @?= Right ((Italic "i") )
+      ]
+    , testGroup "newline" $
+      [
+        testCase "in markdown" $
+          parse markdown "" "abc\n123" @?= Right (Markdown . fmap Basic $ [
+            Unmarked "abc"
+          , Newline "\n"
+          , Unmarked "123"
+          ] )
       ]
     , testGroup "markdown"
     [

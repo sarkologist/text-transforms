@@ -8,7 +8,8 @@ data MarkdownItem a =
   deriving (Eq, Show)
 
 data MarkdownItemBasic a =
-    Unmarked a
+    Newline a
+  | Unmarked a
   | Italic a
   | Bold a
   deriving (Eq, Show)

@@ -36,7 +36,7 @@ markdown = Markdown <$> many1UntilNonGreedy markdownItems (() <$ oneOf "$" <|> e
   where
 
     markdownItems = choice . fmap try $ [
-        Basic <$> markdownItemsBasic "$*#"
+        Basic <$> (markdownItemsBasic "$*#\n" <|> newlineMarkdown)
       ] ++ fmap header [1..6]
 
 header n = Header n <$>
@@ -48,6 +48,7 @@ markdownItemsBasic ignore = choice . fmap try $ [
 
 unmarked :: (Monad m) => [Char] -> ParsecT T.Text u m (MarkdownItemBasic [Char])
 unmarked ignore = Unmarked <$> many1UntilNonGreedy anyChar (() <$ oneOf ignore <|> eof)
+newlineMarkdown = Newline . (:[]) <$> endOfLine
 bold = Bold <$> within (string "**") (noneOf "*")
 italic = Italic <$> within (char '*') (noneOf "*")
 
