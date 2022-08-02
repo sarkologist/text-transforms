@@ -6,10 +6,10 @@ import Types
 import Lucid
 import Data.Monoid
 
-markdownToHtml (Content xs) = foldMap markdownItemToHtml xs
+markdownToHtml (Content xs) = div_ $ foldMap markdownItemToHtml xs
 
 --markdownItemToHtml :: (Monad m, Term (HtmlT m ()) result) => Item String -> result
-markdownItemToHtml (Markdown xs) = div_ (foldMap itemToHtml xs)
+markdownItemToHtml (Markdown xs) = foldMap itemToHtml xs
 markdownItemToHtml (InlineMath x) = toHtml $ "\\(" <> x <> "\\)"
 markdownItemToHtml (BlockMath x) = toHtml $ "\\[" <> x <> "\\]"
 
