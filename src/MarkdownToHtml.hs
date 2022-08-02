@@ -43,8 +43,6 @@ many1UntilNonGreedy p end = do
 
 within delim p = delim *> many1Until p (lookAhead delim) <* delim
 
-alternating p q = ((:) <$> p <*> alternating q p) <|> pure []
-
 markdown = Markdown <$> many1UntilNonGreedy markdownItems (() <$ oneOf "$" <|> eof)
   where
 
