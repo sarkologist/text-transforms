@@ -1,10 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
-module MarkdownToHtmlTest where
+module MarkdownParseTest where
 
 import Test.Tasty
 import Test.Tasty.HUnit
 
-import MarkdownToHtml
+import Types
+import MarkdownParse
 
 import Text.Parsec (parse)
 
@@ -22,6 +23,8 @@ test_individual =
       parse bold "" "**abc**" @?= Right (Bold "abc")
   , testCase "header simple" $
       parse (header 1) "" "# abc\n" @?= Right (Header 1 [ Unmarked "abc" ])
+  , testCase "header 2" $
+      parse (header 2) "" "## abc\n" @?= Right (Header 2 [ Unmarked "abc" ])
   , testCase "header complex" $
       parse (header 1) "" "# abc **bold**\n" @?= Right (Header 1 [ Unmarked "abc ", Bold "bold" ])
   ]

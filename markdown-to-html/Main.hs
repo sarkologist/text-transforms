@@ -1,10 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
-import MarkdownToHtml (everything)
+import MarkdownParse (everything)
+import MarkdownToHtml (markdownToHtml)
+
 import Text.Parsec
+import Lucid
 
 import qualified Data.Text as T
+import qualified Data.Text.Lazy.IO as LTIO
 import qualified Control.Foldl as F
 
 import Turtle as T (stdin, lineToText, inproc, die, empty, fold)
@@ -16,5 +20,6 @@ main = do
   source <- getText
   case parse everything "" source of
     Left err -> die (T.pack (show err))
-    Right result -> return ()
+    Right parsed -> do
+      LTIO.putStrLn . renderText . markdownToHtml $ parsed
 
