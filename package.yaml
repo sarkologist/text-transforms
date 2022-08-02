@@ -27,9 +27,24 @@ dependencies:
 - hscolour
 - pretty-show
 - pretty-simple
+- lucid
+- parsec
+- foldl
 
 library:
   source-dirs: src
+
+tests:
+  text-transforms-test:
+    main: Driver.hs
+    source-dirs: tests
+    dependencies:
+    - base
+    - tasty
+    - tasty-hunit
+    - text-transforms
+    build-tools:
+      - tasty-discover
 
 executables:
   wikipedia-latex:
@@ -65,5 +80,5 @@ executables:
     dependencies:
     - text-transforms
     - lucid
-    - attoparsec
+    - parsec
     - foldl
