@@ -29,6 +29,39 @@ test_individual =
       parse (header 2) "" "## abc\n" @?= Right (Header 2 [ Unmarked "abc" ])
   , testCase "header complex" $
       parse (header 1) "" "# abc **bold**\n" @?= Right (Header 1 [ Unmarked "abc ", Bold "bold" ])
+  , testGroup "bullets" [
+      testCase "one item" $
+        parse (bullets 0) "" "- a\n" @?= Right (Bullets [BulletLeaf [ Unmarked "a" ]])
+    , testCase "two items" $
+        parse (bullets 0) "" "- a\n- b\n" @?= Right (Bullets [
+          BulletLeaf [ Unmarked "a" ],
+          BulletLeaf [ Unmarked "b" ]
+        ])
+    , testCase "nested" $
+        parse (bullets 0) ""
+          "- a\n\
+          \  - b\n\
+          \  - c\n" @?= Right (Bullets [
+          BulletLeaf [ Unmarked "a" ]
+        , BulletRecurse $ Bullets [
+            BulletLeaf [ Unmarked "b" ]
+          , BulletLeaf [ Unmarked "c" ]
+          ]
+        ])
+    , testCase "nested back up level" $
+        parse (bullets 0) ""
+          "- a\n\
+          \  - b\n\
+          \  - c\n\
+          \- d\n" @?= Right (Bullets [
+          BulletLeaf [ Unmarked "a" ]
+        , BulletRecurse $ Bullets [
+            BulletLeaf [ Unmarked "b" ]
+          , BulletLeaf [ Unmarked "c" ]
+          ]
+        , BulletLeaf [ Unmarked "d" ]
+        ])
+    ]
   ]
 
 
@@ -43,10 +76,10 @@ test_complex =
     , testGroup "newline" $
       [
         testCase "in markdown" $
-          parse markdown "" "abc\n123" @?= Right (Markdown . fmap Basic $ [
-            Unmarked "abc"
+          parse markdown "" "abc\n123" @?= Right (Markdown $ [
+            Basic $ Unmarked "abc"
           , Newline "\n"
-          , Unmarked "123"
+          , Basic $ Unmarked "123"
           ] )
       ]
     , testGroup "markdown"
@@ -61,6 +94,14 @@ test_complex =
               , Basic (Unmarked " ")
               , Basic (Bold "b")
           ])
+     , testGroup "bullet" [
+          testCase "follows unmarked" $
+            parse markdown "" "abc\n- bullet\n" @?= Right (Markdown [
+                Basic (Unmarked "abc")
+              , Newline "\n"
+              , MarkdownBullets $ Bullets [ BulletLeaf [ Unmarked "bullet" ] ]
+              ])
+        ]
     ]
     , testGroup "everything" [
         testCase "unmarked" $

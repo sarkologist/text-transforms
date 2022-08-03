@@ -36,7 +36,9 @@ markdown = Markdown <$> many1UntilNonGreedy markdownItems (() <$ oneOf "$" <|> e
   where
 
     markdownItems = choice . fmap try $ [
-        Basic <$> (markdownItemsBasic "$*#\n" <|> newlineMarkdown)
+        newlineMarkdown
+      , MarkdownBullets <$> bullets 0
+      , Basic <$> markdownItemsBasic "$*#\n"
       ] ++ fmap header [1..6]
 
 header n = Header n <$>
@@ -51,6 +53,18 @@ unmarked ignore = Unmarked <$> many1UntilNonGreedy anyChar (() <$ oneOf ignore <
 newlineMarkdown = Newline . (:[]) <$> endOfLine
 bold = Bold <$> within (string "**") (noneOf "*")
 italic = Italic <$> within (char '*') (noneOf "*")
+
+bullets level = Bullets <$> many1 (base <|> check *> recurse)
+  where
+    base = bulletLeaf level
+    recurse = BulletRecurse <$> bullets (level+1)
+
+    check = lookAhead (bulletNesting (level+1))
+
+bulletLeaf level = between (bulletNesting level *> string "- ") endOfLine $
+  BulletLeaf <$> many1 (markdownItemsBasic "$*#\n")
+
+bulletNesting level = string (mconcat (replicate level "  ")) <|> string (replicate level '\t')
 
 inlineMath = InlineMath <$> within (char '$') anyChar
 blockMath = BlockMath <$> within (string "$$") anyChar
