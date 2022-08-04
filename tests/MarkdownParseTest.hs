@@ -14,15 +14,19 @@ test_individual =
   testGroup "individual"
   [
     testCase "unmarked" $
-      parse (unmarked "") "" "abc" @?= Right (Unmarked "abc")
+      parse unmarked "" "abc" @?= Right (Unmarked "abc")
   , testCase "newline" $
       parse newlineMarkdown "" "\n" @?= Right (Newline "\n")
   , testCase "unmarked only" $
-      parse (unmarked "*") "" "abc*i*" @?= Right (Unmarked "abc")
+      parse unmarked "" "abc*i*" @?= Right (Unmarked "abc")
   , testCase "italic" $
       parse italic "" "*abc*" @?= Right (Italic "abc")
   , testCase "bold" $
       parse bold "" "**abc**" @?= Right (Bold "abc")
+  , testGroup "latex" [
+        testCase "inline" $
+          parse inlineMath "" "$abc$" @?= Right (InlineMath "abc")
+      ]
   , testCase "header simple" $
       parse (header 1) "" "# abc\n" @?= Right (Header 1 [ Unmarked "abc" ])
   , testCase "header 2" $
@@ -71,7 +75,7 @@ test_complex =
       testGroup "unmarked" $
       [
         testCase "non-greedy" $
-          parse (unmarked "*" *> italic) "" "abc *i*" @?= Right ((Italic "i") )
+          parse (unmarked *> italic) "" "abc *i*" @?= Right ((Italic "i") )
       ]
     , testGroup "newline" $
       [
@@ -87,12 +91,14 @@ test_complex =
       testCase "unmarked" $
         parse markdown "" "abc" @?= Right (Markdown [ Basic (Unmarked "abc") ])
     , testCase "basic" $
-        parse markdown "" "abc *i* **b**" @?=
-          Right (Markdown [
-                Basic (Unmarked "abc ")
-              , Basic (Italic "i")
-              , Basic (Unmarked " ")
-              , Basic (Bold "b")
+        parse markdown "" "abc *i* **b** $inline$" @?=
+          Right (Markdown . fmap Basic $ [
+                Unmarked "abc "
+              , Italic "i"
+              , Unmarked " "
+              , Bold "b"
+              , Unmarked " "
+              , InlineMath "inline"
           ])
      , testGroup "bullet" [
           testCase "follows unmarked" $
@@ -109,9 +115,11 @@ test_complex =
       , testCase "latex" $
           parse everything "" "abc $x$ $$y$$" @?= Right (
             Content [
-              Markdown [ Basic (Unmarked "abc ") ]
-            , InlineMath "x"
-            , Markdown [ Basic (Unmarked " ") ]
+              Markdown . fmap Basic $ [
+                  Unmarked "abc "
+                , InlineMath "x"
+                , Unmarked " "
+                ]
             , BlockMath "y"
             ]
           )

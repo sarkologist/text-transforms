@@ -32,27 +32,27 @@ many1UntilNonGreedy p end = do
 
 within delim p = delim *> many1Until p (lookAhead delim) <* delim
 
-markdown = Markdown <$> many1UntilNonGreedy markdownItems (() <$ oneOf "$" <|> eof)
+markdown = Markdown <$> many1UntilNonGreedy markdownItems (() <$ string "$$" <|> eof)
   where
 
     markdownItems = choice . fmap try $ [
         newlineMarkdown
       , MarkdownBullets <$> bullets 0
-      , Basic <$> markdownItemsBasic "$*#\n"
+      , Basic <$> markdownItemsBasic
       ] ++ fmap header [1..6]
 
 header n = Header n <$>
-  between (string (take n (repeat '#')) *> char ' ') endOfLine (many1 (markdownItemsBasic "$*#\n"))
+  between (string (take n (repeat '#')) *> char ' ') endOfLine (many1 (markdownItemsBasic))
 
-markdownItemsBasic ignore = choice . fmap try $ [
-    bold, italic, unmarked ignore
+markdownItemsBasic = choice . fmap try $ [
+    bold, italic, inlineMath, unmarked
   ]
 
-unmarked :: (Monad m) => [Char] -> ParsecT T.Text u m (MarkdownItemBasic [Char])
-unmarked ignore = Unmarked <$> many1UntilNonGreedy anyChar (() <$ oneOf ignore <|> eof)
+unmarked = Unmarked <$> many1UntilNonGreedy anyChar (() <$ oneOf  "$*#\n" <|> eof)
 newlineMarkdown = Newline . (:[]) <$> endOfLine
 bold = Bold <$> within (string "**") (noneOf "*")
 italic = Italic <$> within (char '*') (noneOf "*")
+inlineMath = InlineMath <$> within (char '$') anyChar
 
 bullets level = Bullets <$> many1 (base <|> check *> recurse)
   where
@@ -62,12 +62,11 @@ bullets level = Bullets <$> many1 (base <|> check *> recurse)
     check = lookAhead (bulletNesting (level+1))
 
 bulletLeaf level = between (bulletNesting level *> string "- ") endOfLine $
-  BulletLeaf <$> many1 (markdownItemsBasic "$*#\n")
+  BulletLeaf <$> many1 markdownItemsBasic
 
 bulletNesting level = string (mconcat (replicate level "  ")) <|> string (replicate level '\t')
 
-inlineMath = InlineMath <$> within (char '$') anyChar
 blockMath = BlockMath <$> within (string "$$") anyChar
 
 everything :: ParsecT T.Text u Identity (Content String)
-everything = fmap Content . many1 . choice . fmap try $ [ blockMath, inlineMath, markdown ]
+everything = fmap Content . many1 . choice . fmap try $ [ blockMath, markdown ]
