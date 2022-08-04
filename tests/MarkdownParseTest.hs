@@ -41,6 +41,8 @@ test_individual =
           BulletLeaf [ Unmarked "a" ],
           BulletLeaf [ Unmarked "b" ]
         ])
+    , testCase "not followed by final newline" $
+        parse (bullets 0) "" "- a" @?= Right (Bullets [BulletLeaf [ Unmarked "a" ]])
     , testCase "nested" $
         parse (bullets 0) ""
           "- a\n\
