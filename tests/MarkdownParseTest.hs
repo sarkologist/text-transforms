@@ -43,6 +43,8 @@ test_individual =
         ])
     , testCase "not followed by final newline" $
         parse (bullets 0) "" "- a" @?= Right (Bullets [BulletLeaf [ Unmarked "a" ]])
+    , testCase "not followed by empty line" $
+        parse (bullets 0) "" "- a\n something" @?= Right (Bullets [BulletLeaf [ Unmarked "a" ]])
     , testCase "nested" $
         parse (bullets 0) ""
           "- a\n\

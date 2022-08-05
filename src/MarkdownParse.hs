@@ -59,7 +59,7 @@ bullets level = Bullets <$> many1 (base <|> check *> recurse)
     base = bulletLeaf level
     recurse = BulletRecurse <$> bullets (level+1)
 
-    check = lookAhead (bulletNesting (level+1))
+    check = try (lookAhead (bulletNesting (level+1)))
 
 bulletLeaf level = between (bulletNesting level *> string "- ") (() <$ endOfLine <|> eof) $
   BulletLeaf <$> many1 markdownItemsBasic
