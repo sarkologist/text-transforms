@@ -30,7 +30,8 @@ many1UntilNonGreedy p end = do
   notFollowedBy end
   (:) <$> p <*> (many1UntilNonGreedy p end <|> [] <$ lookAhead end)
 
-within delim p = delim *> many1Until p (lookAhead delim) <* delim
+within delim p = delim *> p <* delim
+withinMany delim p = delim *> many1Until p (lookAhead delim) <* delim
 
 markdown = Markdown <$> many1UntilNonGreedy markdownItems (() <$ string "$$" <|> eof)
   where
@@ -45,14 +46,17 @@ header n = Header n <$>
   between (string (take n (repeat '#')) *> char ' ') endOfLine (many1 (markdownItemsBasic))
 
 markdownItemsBasic = choice . fmap try $ [
-    bold, italic, inlineMath, unmarked
+    bold, italic, BasicInline <$> base
   ]
 
-unmarked = Unmarked <$> many1UntilNonGreedy anyChar (() <$ oneOf  "$*#\n" <|> eof)
+base = choice [ inlineMath, unmarked ]
+
 newlineMarkdown = Newline . (:[]) <$> endOfLine
-bold = Bold <$> within (string "**") (noneOf "*")
-italic = Italic <$> within (char '*') (noneOf "*")
-inlineMath = InlineMath <$> within (char '$') anyChar
+bold = Bold <$> withinMany (string "**") base
+italic = Italic <$> withinMany (char '*') base
+
+unmarked = Unmarked <$> many1UntilNonGreedy anyChar (() <$ oneOf  "$*#\n" <|> eof)
+inlineMath = InlineMath <$> withinMany (char '$') anyChar
 
 bullets level = Bullets <$> many1 (base <|> check *> recurse)
   where
@@ -66,7 +70,7 @@ bulletLeaf level = between (bulletNesting level *> string "- ") (() <$ endOfLine
 
 bulletNesting level = string (mconcat (replicate level "  ")) <|> string (replicate level '\t')
 
-blockMath = BlockMath <$> within (string "$$") anyChar
+blockMath = BlockMath <$> withinMany (string "$$") anyChar
 
 everything :: ParsecT T.Text u Identity (Content String)
 everything = fmap Content . many1 . choice . fmap try $ [ blockMath, markdown ]

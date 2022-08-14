@@ -28,7 +28,9 @@ bulletsToHtml (Bullets bs) = ul_ (traverse_ bulletItemToHtml bs)
 bulletItemToHtml (BulletLeaf xs) = li_ (traverse_ inlineToHtml xs)
 bulletItemToHtml (BulletRecurse b) = bulletsToHtml b
 
-inlineToHtml (Unmarked x) = toHtml x
-inlineToHtml (Italic x) = i_ $ toHtml x
-inlineToHtml (Bold x) = b_ $ toHtml x
-inlineToHtml (InlineMath x) = toHtml $ "\\(" <> x <> "\\)"
+inlineToHtml (BasicInline x) = baseToHtml x
+inlineToHtml (Italic xs) = i_ . traverse_ baseToHtml $ xs
+inlineToHtml (Bold xs) = b_ . traverse_ baseToHtml $ xs
+
+baseToHtml (Unmarked x) = toHtml x
+baseToHtml (InlineMath x) = toHtml $ "\\(" <> x <> "\\)"

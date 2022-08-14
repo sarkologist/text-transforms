@@ -10,9 +10,13 @@ data MarkdownItem a =
   deriving (Eq, Show)
 
 data Inline a =
+    BasicInline (Base a)
+  | Italic [ Base a ]
+  | Bold [ Base a ]
+  deriving (Eq, Show)
+
+data Base a =
     Unmarked a
-  | Italic a
-  | Bold a
   | InlineMath a
   deriving (Eq, Show)
 
