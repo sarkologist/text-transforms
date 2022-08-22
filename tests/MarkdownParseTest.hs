@@ -76,6 +76,19 @@ test_individual =
           ]
         , BulletLeaf [ BasicInline . Unmarked $ "d" ]
         ])
+    , testCase "nested 3 levels" $
+        parse (bullets 0) ""
+          "- a\n\
+          \  - b\n\
+          \    - c\n" @?= Right (Bullets [
+          BulletLeaf [ BasicInline . Unmarked $ "a" ]
+        , BulletRecurse $ Bullets [
+            BulletLeaf [ BasicInline . Unmarked $ "b" ]
+          , BulletRecurse $ Bullets [
+              BulletLeaf [ BasicInline . Unmarked $ "c" ]
+            ]
+          ]
+        ])
     ]
   ]
 

@@ -60,7 +60,7 @@ inlineMath = InlineMath <$> withinMany (char '$') anyChar
 
 bullets level = Bullets <$> many1 (base <|> check *> recurse)
   where
-    base = bulletLeaf level
+    base = try (bulletLeaf level)
     recurse = BulletRecurse <$> bullets (level+1)
 
     check = try (lookAhead (bulletNesting (level+1)))
