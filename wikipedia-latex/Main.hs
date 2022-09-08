@@ -26,7 +26,7 @@ replaceLatex :: State Node ()
 replaceLatex =
   zoom mathElements $ do
     latex <- zoom latexInMathElement get
-    children .= [NodeContent $ "$$" <> latex <> "$$"]
+    children .= [NodeContent $ "$" <> latex <> "$"]
 
 
 getHtml = LT.fromStrict . ensureSingleTopLevelTag . lineToText <$> inproc "/usr/local/bin/pbv" ["public.html"] empty
