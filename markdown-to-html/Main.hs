@@ -3,6 +3,7 @@ module Main where
 
 import MarkdownParse (everything)
 import MarkdownToHtml (markdownToHtml)
+import Anki
 
 import Text.Parsec
 import Lucid
@@ -21,5 +22,5 @@ main = do
   case parse everything "" source of
     Left err -> die (T.pack (show err))
     Right parsed -> do
-      LTIO.putStrLn . renderText . markdownToHtml $ parsed
+      LTIO.putStrLn . renderText . markdownToHtml . normaliseHeaders $ parsed
 
