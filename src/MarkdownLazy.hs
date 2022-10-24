@@ -1,12 +1,14 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 import MarkdownParse (withinMany)
 
 import Data.Text as T
 
 import Text.Parsec
-import Control.Lens (Prism', prism, prism', withPrism)
+import Control.Lens (alongside, Prism', prism, prism', withPrism)
+import Control.Lens.TH
 import Control.Applicative hiding (many)
 
 type Parser a = Parsec Text () a
@@ -19,6 +21,8 @@ withPrism' p cont = withPrism p $ \build match ->
           Right x -> Just x
           Left _ -> Nothing
     in cont build match'
+
+inContext p = alongside p id
 
 andThen :: Optic a x -> Optic Text y -> Optic a (x, y)
 andThen first second = withPrism' first $ \b m ->
@@ -40,8 +44,11 @@ parseInContext p (input, (Context after)) = eitherToMaybe $
     (parsed, Context (unconsumed <> after)))
     p getInput) "" input
 
-data Italic = Italic Text deriving Show
-data Header = Header Int Text deriving Show
+newtype Italic = Italic { _unItalic :: Text } deriving Show
+data Header = Header {
+  _level :: Int,
+  _content :: Text
+} deriving Show
 
 i :: Optic Text Italic
 i = prism' build match
@@ -60,3 +67,6 @@ h n = prism' build match
 eitherToMaybe e = case e of
         Left _ -> Nothing
         Right x -> Just x
+
+makeLenses ''Italic
+makeLenses ''Header
