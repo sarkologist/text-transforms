@@ -59,10 +59,10 @@ i = prism' build match
 h :: Int -> Optic Text Header
 h n = prism' build match
   where
-    match = parseInContext $ Header n . pack <$> between (string hashes *> char ' ') endOfLine (many1 (noneOf ['\n']))
-    build (Header n txt, Context after) = (pack hashes <> " " <> txt <> "\n" , Context after)
+    match = parseInContext $ Header n . pack <$> between (string (hashes n) *> char ' ') endOfLine (many1 (noneOf ['\n']))
+    build (Header k txt, Context after) = (pack (hashes k) <> " " <> txt <> "\n" , Context after)
 
-    hashes = Prelude.take n (repeat '#')
+    hashes k = Prelude.take k (repeat '#')
 
 eitherToMaybe e = case e of
         Left _ -> Nothing
