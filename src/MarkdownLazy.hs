@@ -10,13 +10,7 @@ import Control.Lens (Prism', prism, prism', withPrism)
 import Control.Applicative hiding (many)
 
 type Parser a = Parsec Text () a
-
-italic :: Parser Italic
-italic = Italic . pack <$> withinMany (char '*') (noneOf (['*']))
-
-data Italic = Italic Text deriving Show
 newtype Context = Context Text deriving Show
-
 type Optic a b = Prism' (a, Context) (b, Context)
 
 withPrism' :: Prism' s a -> ((a -> s) -> (s -> Maybe a) -> r) -> r
@@ -46,11 +40,22 @@ parseInContext p (input, (Context after)) = eitherToMaybe $
     (parsed, Context (unconsumed <> after)))
     p getInput) "" input
 
+data Italic = Italic Text deriving Show
+data Header = Header Int Text deriving Show
+
 i :: Optic Text Italic
 i = prism' build match
   where
-    match = parseInContext italic
+    match = parseInContext $ Italic . pack <$> withinMany (char '*') (noneOf (['*']))
     build (Italic txt, Context after) = ("*" <> txt <> "*", Context after)
+
+h :: Int -> Optic Text Header
+h n = prism' build match
+  where
+    match = parseInContext $ Header n . pack <$> between (string hashes *> char ' ') endOfLine (many1 (noneOf ['\n']))
+    build (Header n txt, Context after) = (pack hashes <> " " <> txt <> "\n" , Context after)
+
+    hashes = Prelude.take n (repeat '#')
 
 eitherToMaybe e = case e of
         Left _ -> Nothing
