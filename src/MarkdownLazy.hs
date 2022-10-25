@@ -59,6 +59,8 @@ many' p = (<||>) (some p) none
 
 newtype ChoicePrism a b = ChoicePrism { unChoicePrism :: Pprism a b }
 
+-- ChoicePrism newtype for impredicative polymorphism workaround
+-- Int to track which Prism succeeded, to pick the correct builder
 choice :: [ ChoicePrism a b ] -> Pprism a (b, Int)
 choice ps = unChoicePrism $ go 0 ps
   where
