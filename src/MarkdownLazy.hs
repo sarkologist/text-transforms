@@ -7,7 +7,7 @@ import MarkdownParse (withinMany)
 
 import Data.Text as T
 
-import Text.Parsec hiding (many)
+import Text.Parsec hiding (many, choice)
 import Control.Lens (Iso', Choice, Optic', alongside, Prism', prism, prism', withPrism, iso, swapped, mapping)
 import Control.Lens.TH
 import Control.Applicative hiding (many, some)
@@ -56,6 +56,37 @@ some p = andThen p (many' p) . swapped . mapping _nonEmpty . swapped
 
 many' :: Pprism Text a -> Pprism Text (Either (a,[a]) ())
 many' p = (<||>) (some p) none
+
+newtype ChoicePrism a b = ChoicePrism { unChoicePrism :: Pprism a b }
+
+choice :: [ ChoicePrism a b ] -> Pprism a (b, Int)
+choice ps = unChoicePrism $ go 0 ps
+  where
+    go n (p:[]) = ChoicePrism $ unChoicePrism p . swapped . mapping (index n) . swapped
+    go n (p:rest) = ChoicePrism $ (unChoicePrism p <||> unChoicePrism (go (n+1) rest)) . swapped . mapping (marshal n) . swapped
+    go _ [] = error "empty choice"
+
+    index :: Int -> Iso' a (a,Int)
+    index n = iso (\a -> (a,n)) (\(a,n) -> a)
+
+    marshal :: Int -> Iso' (Either b (b, Int)) (b, Int)
+    marshal n = iso merge split
+      where
+        merge (Left b) = (b, n)
+        merge (Right (b, k)) = (b, k)
+
+        split (b, k) | k > 0  = Right (b, k)
+        split (b, k) | k == 0 = Left b
+
+headers :: Pprism Text (Header, Int)
+headers = choice [
+   ChoicePrism (h 1),
+   ChoicePrism (h 2),
+   ChoicePrism (h 3),
+   ChoicePrism (h 4),
+   ChoicePrism (h 5),
+   ChoicePrism (h 6)
+ ]
 
 -- cannot use Control.Lens.Traversal.failing because it composes Prisms into Traversals
 -- and we need it to stay a Prism because `andThen` takes Prisms
