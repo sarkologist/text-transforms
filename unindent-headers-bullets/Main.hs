@@ -22,6 +22,6 @@ main = do
   case parse everything "" source of
     Left err -> die (T.pack (show err))
     Right parsed -> do
-      LTIO.putStrLn . Markdown.unindentAll $ parsed
+      putStrLn . show . Markdown.unindentAll $ parsed
 
 
