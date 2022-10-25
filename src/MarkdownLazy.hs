@@ -8,7 +8,7 @@ import MarkdownParse (withinMany)
 import Data.Text as T
 
 import Text.Parsec hiding (many)
-import Control.Lens (Iso', Choice, Optic', alongside, Traversal', Prism', prism, prism', withPrism, failing, iso, swapped, mapping)
+import Control.Lens (Iso', Choice, Optic', alongside, Prism', prism, prism', withPrism, iso, swapped, mapping)
 import Control.Lens.TH
 import Control.Applicative hiding (many, some)
 
@@ -16,7 +16,6 @@ type Parser a = Parsec Text () a
 newtype Context = Context Text deriving Show
 type P p f a b = Optic' p f (a, Context) (b, Context)
 type Pprism a b = forall p f. (Choice p, Applicative f) => P p f a b
-type Ptraversal a b = forall f. Applicative f => P (->) f a b
 
 withPrism' :: Prism' s a -> ((a -> s) -> (s -> Maybe a) -> r) -> r
 withPrism' p cont = withPrism p $ \build match ->
@@ -26,20 +25,53 @@ withPrism' p cont = withPrism p $ \build match ->
     in cont build match'
 inContext p = alongside p id
 
-_cons :: Iso' (x,[x]) [x]
-_cons = iso (\(x,y) -> x:y) (\(x:y) -> (x,y))
+_nonEmpty :: Iso' (a, Either (a,[a]) ()) (a,[a])
+_nonEmpty = iso toList fromList
+  where
+    toList (a, Left (x,y)) = (a, x:y)
+    toList (a, Right ()) = (a, [])
 
-none :: Pprism Text [a]
-none = prism' (\([], ctx) -> ("", ctx)) (\(_, ctx) -> Just ([], ctx))
+    fromList (a, []) = (a, Right ())
+    fromList (a, x:y) = (a, Left (x,y))
+
+_list :: Iso' (Either (a,[a]) ()) [a]
+_list = iso toList fromList
+  where
+    toList (Left (x,xs)) = x:xs
+    toList (Right ()) = []
+
+    fromList (x:xs) = Left (x,xs)
+    fromList [] = Right ()
+
+none :: Pprism Text ()
+none = prism' (\((), ctx) -> ("", ctx)) match
+  where
+    match (txt, Context ctx) = Just ((), Context (txt <> ctx))
 
 many :: Pprism Text x -> Pprism Text [x]
-many p = many' p
+many p = many' p . swapped . mapping _list . swapped
 
-some :: Pprism Text a -> Pprism Text [a]
-some p = andThen p (many' p) . swapped . mapping _cons . swapped
+some :: Pprism Text a -> Pprism Text (a,[a])
+some p = andThen p (many' p) . swapped . mapping _nonEmpty . swapped
 
-many' :: Pprism Text a -> Pprism Text [a]
-many' p = failing (some p) none
+many' :: Pprism Text a -> Pprism Text (Either (a,[a]) ())
+many' p = failingWhich (some p) none
+
+-- cannot use Control.Lens.Traversal.failing because it composes Prisms into Traversals
+-- and we need it to stay a Prism because `andThen` takes Prisms
+failingWhich :: Pprism a x -> Pprism a y -> Pprism a (Either x y)
+failingWhich first second = withPrism' first $ \b m ->
+  withPrism' second $ \b' m' ->
+  let
+    match (a, ctx) =  case m (a, ctx) of
+      Just (x,ctx) -> Just (Left x, ctx)
+      Nothing -> case m' (a, ctx) of
+        Just (y, ctx) -> Just (Right y, ctx)
+        Nothing -> Nothing
+
+    build (Left x, ctx) = b (x, ctx)
+    build (Right y, ctx) = b' (y, ctx)
+   in prism' build match
 
 andThen :: Pprism a x -> Pprism Text y -> Pprism a (x, y)
 andThen first second = withPrism' first $ \b m ->
