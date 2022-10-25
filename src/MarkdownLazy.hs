@@ -55,12 +55,13 @@ some :: Pprism Text a -> Pprism Text (a,[a])
 some p = andThen p (many' p) . swapped . mapping _nonEmpty . swapped
 
 many' :: Pprism Text a -> Pprism Text (Either (a,[a]) ())
-many' p = failingWhich (some p) none
+many' p = (<||>) (some p) none
 
 -- cannot use Control.Lens.Traversal.failing because it composes Prisms into Traversals
 -- and we need it to stay a Prism because `andThen` takes Prisms
-failingWhich :: Pprism a x -> Pprism a y -> Pprism a (Either x y)
-failingWhich first second = withPrism' first $ \b m ->
+-- it returns Either because we need to build according to the correct Prism
+(<||>) :: Pprism a x -> Pprism a y -> Pprism a (Either x y)
+(<||>) first second = withPrism' first $ \b m ->
   withPrism' second $ \b' m' ->
   let
     match (a, ctx) =  case m (a, ctx) of
