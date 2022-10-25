@@ -43,16 +43,17 @@ many' p = failing (some p) none
 
 andThen :: Pprism a x -> Pprism Text y -> Pprism a (x, y)
 andThen first second = withPrism' first $ \b m ->
-  withPrism' second $ \b' m' ->
   let
     match (a, ctx) = case m (a, ctx) of
-      Just (x, (Context unconsumed)) -> case m' (unconsumed, (Context "")) of
-        Just (y, unconsumed') -> Just ((x,y), unconsumed')
-        Nothing -> Nothing
+      Just (x, (Context unconsumed)) -> withPrism' second $ \b' m' ->
+        case m' (unconsumed, (Context "")) of
+          Just (y, unconsumed') -> Just ((x,y), unconsumed')
+          Nothing -> Nothing
       Nothing -> Nothing
 
-    build ((x,y), ctx) = case b' (y, ctx) of
-       (t, Context ctx') -> b (x, (Context (t <> ctx')))
+    build ((x,y), ctx) = withPrism' second $ \b' m' ->
+      case b' (y, ctx) of
+         (t, Context ctx') -> b (x, (Context (t <> ctx')))
    in prism' build match
 
 parseInContext :: Parser a -> (Text, Context) -> Maybe (a, Context)
