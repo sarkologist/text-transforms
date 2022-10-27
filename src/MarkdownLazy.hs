@@ -8,7 +8,7 @@ import MarkdownParse (withinMany)
 import Data.Text as T
 
 import Text.Parsec hiding (many, choice)
-import Control.Lens (Iso', Choice, Optic', alongside, Prism', prism, prism', withPrism, iso, swapped, mapping)
+import Control.Lens (Traversal', Iso', Choice, Optic', alongside, Prism', prism, prism', withPrism, iso, swapped, mapping, _Left)
 import Control.Lens.TH
 import Control.Applicative hiding (many, some)
 
@@ -47,6 +47,11 @@ none :: Pprism Text ()
 none = prism' (\((), ctx) -> ("", ctx)) match
   where
     match (txt, Context ctx) = Just ((), Context (txt <> ctx))
+
+manyOf :: Pprism Text a -> Pprism Text Text -> Traversal' Text a
+manyOf single negative =
+  emptyContext . many (single <||> negative) . swapped . traverse . traverse . _Left
+  where emptyContext = iso (\txt -> (txt, Context "")) (\(txt, Context rest) -> txt <> rest)
 
 many :: Pprism Text x -> Pprism Text [x]
 many p = many' p . swapped . mapping _list . swapped
@@ -140,6 +145,12 @@ i = prism' build match
     match = parseInContext $ Italic . pack <$> withinMany (char '*') (noneOf (['*']))
     build (Italic txt, Context after) = ("*" <> txt <> "*", Context after)
 
+noti :: Pprism Text Text
+noti = prism' build match
+  where
+    match = parseInContext $ pack <$> many1 (noneOf (['*']))
+    build (txt, Context after) = (txt, Context after)
+
 h :: Int ->  Pprism Text Header
 h n = prism' build match
   where
@@ -147,6 +158,12 @@ h n = prism' build match
     build (Header k txt, Context after) = (pack (hashes k) <> " " <> txt <> "\n" , Context after)
 
     hashes k = Prelude.take k (repeat '#')
+
+notheader :: Pprism Text Text
+notheader = prism' build match
+  where
+    match = parseInContext $ pack <$> many1 (noneOf (['#']))
+    build (txt, Context after) = (txt, Context after)
 
 eitherToMaybe e = case e of
         Left _ -> Nothing
