@@ -171,3 +171,4 @@ eitherToMaybe e = case e of
 
 makeLenses ''Italic
 makeLenses ''Header
+makePrisms ''Header
