@@ -26,7 +26,7 @@ withPrism' p cont = withPrism p $ \build match ->
 focusing :: Lens' s Text -> Lens' (s, Context) (Text, Context)
 focusing focus = alongside (focus . emptyContext) id . _1
 
-manyOf :: Pprism Text a -> Pprism Text Text -> Ptraversal Text a
+manyOf :: Pprism Text a -> Ptraversal Text Text -> Ptraversal Text a
 manyOf single negative =
   many' (andThen single negative) . mergeContext
     where
