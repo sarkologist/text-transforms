@@ -82,3 +82,15 @@ executables:
     - lucid
     - parsec
     - foldl
+
+  unindent-headers-bullets:
+    main:                Main.hs
+    source-dirs:         unindent-headers-bullets
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - text-transforms
+    - parsec
+    - foldl
