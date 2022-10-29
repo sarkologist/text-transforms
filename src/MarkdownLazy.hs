@@ -7,8 +7,8 @@ import MarkdownParse (withinMany)
 
 import Data.Text as T
 
-import Text.Parsec hiding (many, choice)
-import Control.Lens (Traversal', Iso', Choice, Optic', alongside, Prism', prism, prism', withPrism, iso, swapped, mapping, _Left)
+import Text.Parsec hiding (choice)
+import Control.Lens (Lens', Traversal', Iso', Choice, Optic', alongside, Prism', prism, prism', withPrism, iso, swapped, mapping, _Left, failing, ignored, _1)
 import Control.Lens.TH
 import Control.Applicative hiding (many, some)
 
@@ -16,6 +16,7 @@ type Parser a = Parsec Text () a
 newtype Context = Context Text deriving Show
 type P p f a b = Optic' p f (a, Context) (b, Context)
 type Pprism a b = forall p f. (Choice p, Applicative f) => P p f a b
+type Ptraversal a b = forall f. (Applicative f) => P (->) f a b
 
 withPrism' :: Prism' s a -> ((a -> s) -> (s -> Maybe a) -> r) -> r
 withPrism' p cont = withPrism p $ \build match ->
@@ -23,44 +24,25 @@ withPrism' p cont = withPrism p $ \build match ->
           Right x -> Just x
           Left _ -> Nothing
     in cont build match'
-inContext p = alongside p id
 
-_nonEmpty :: Iso' (a, Either (a,[a]) ()) (a,[a])
-_nonEmpty = iso toList fromList
-  where
-    toList (a, Left (x,y)) = (a, x:y)
-    toList (a, Right ()) = (a, [])
+focusing :: Lens' s Text -> Lens' (s, Context) (Text, Context)
+focusing focus = alongside (focus . emptyContext) id . _1
 
-    fromList (a, []) = (a, Right ())
-    fromList (a, x:y) = (a, Left (x,y))
-
-_list :: Iso' (Either (a,[a]) ()) [a]
-_list = iso toList fromList
-  where
-    toList (Left (x,xs)) = x:xs
-    toList (Right ()) = []
-
-    fromList (x:xs) = Left (x,xs)
-    fromList [] = Right ()
-
-none :: Pprism Text ()
-none = prism' (\((), ctx) -> ("", ctx)) match
-  where
-    match (txt, Context ctx) = Just ((), Context (txt <> ctx))
-
-manyOf :: Pprism Text a -> Pprism Text Text -> Traversal' Text a
+manyOf :: Pprism Text a -> Pprism Text Text -> Ptraversal Text a
 manyOf single negative =
-  emptyContext . many (single <||> negative) . swapped . traverse . traverse . _Left
-  where emptyContext = iso (\txt -> (txt, Context "")) (\(txt, Context rest) -> txt <> rest)
+  many' (andThen single negative) . mergeContext
+    where
+      mergeContext :: Iso' ((a,Text), Context) (a, Context)
+      mergeContext = iso (\((x,negative), Context ctx) -> (x, Context (negative <> ctx))) (\(x, ctx) -> ((x,""), ctx))
 
-many :: Pprism Text x -> Pprism Text [x]
-many p = many' p . swapped . mapping _list . swapped
+emptyContext :: Iso' Text (Text, Context)
+emptyContext = iso (\txt -> (txt, Context "")) (\(txt, Context rest) -> txt <> rest)
 
-some :: Pprism Text a -> Pprism Text (a,[a])
-some p = andThen p (many' p) . swapped . mapping _nonEmpty . swapped
+some :: Pprism Text a -> Ptraversal Text a
+some p = andThen' p (many' p)
 
-many' :: Pprism Text a -> Pprism Text (Either (a,[a]) ())
-many' p = (<||>) (some p) none
+many' :: Pprism Text a -> Ptraversal Text a
+many' p = failing (some p) ignored
 
 newtype ChoicePrism a b = ChoicePrism { unChoicePrism :: Pprism a b }
 
@@ -112,6 +94,20 @@ headers = choice [
     build (Right y, ctx) = b' (y, ctx)
    in prism' build match
 
+-- how can second fail?
+-- afb never gets invoked, t is just s
+andThen' :: Pprism Text x -> Ptraversal Text x -> Ptraversal Text x
+andThen' first afbsft =
+  let afbsft' afb s = withPrism' first $ \build match ->
+                case match s of
+                  Nothing -> pure s
+                  Just (a, Context unconsumed) ->
+                    let fb = afb (a, Context "")
+                        ft = afbsft afb (unconsumed, Context "")
+                        buildFirstBefore (b, Context ctx) (s, Context ctx') = build (b, Context (ctx <> s <> ctx'))
+                    in buildFirstBefore <$> fb <*> ft
+  in afbsft'
+
 andThen :: Pprism a x -> Pprism Text y -> Pprism a (x, y)
 andThen first second = withPrism' first $ \b m ->
   let
@@ -148,7 +144,7 @@ i = prism' build match
 noti :: Pprism Text Text
 noti = prism' build match
   where
-    match = parseInContext $ pack <$> many1 (noneOf (['*']))
+    match = parseInContext $ pack <$> many (noneOf (['*']))
     build (txt, Context after) = (txt, Context after)
 
 h :: Int ->  Pprism Text Header
@@ -159,10 +155,11 @@ h n = prism' build match
 
     hashes k = Prelude.take k (repeat '#')
 
+
 notheader :: Pprism Text Text
 notheader = prism' build match
   where
-    match = parseInContext $ pack <$> many1 (noneOf (['#']))
+    match = parseInContext $ pack <$> many (noneOf (['#']))
     build (txt, Context after) = (txt, Context after)
 
 eitherToMaybe e = case e of
@@ -172,3 +169,4 @@ eitherToMaybe e = case e of
 makeLenses ''Italic
 makeLenses ''Header
 makePrisms ''Header
+makePrisms ''Italic
