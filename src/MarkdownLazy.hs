@@ -40,6 +40,26 @@ h n = prism' build match
 
     hashes k = Prelude.take k (repeat '#')
 
+headers :: Ptraversal Text Header
+headers = choice' [
+    ChoiceTraversal (h 1)
+  , ChoiceTraversal (h 2)
+  , ChoiceTraversal (h 3)
+  , ChoiceTraversal (h 4)
+  , ChoiceTraversal (h 5)
+  , ChoiceTraversal (h 6)
+  ]
+
+headersPrism :: Pprism Text (Header, Int)
+headersPrism = choice [
+    ChoicePrism (h 1)
+  , ChoicePrism (h 2)
+  , ChoicePrism (h 3)
+  , ChoicePrism (h 4)
+  , ChoicePrism (h 5)
+  , ChoicePrism (h 6)
+  ]
+
 
 notheader :: Pprism Text Text
 notheader = prism' build match

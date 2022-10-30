@@ -7,7 +7,7 @@ module LazyParseTransforms where
 import Data.Text as T
 
 import Text.Parsec hiding (choice)
-import Control.Lens (Lens', Traversal', Iso', Choice, Optic', alongside, Prism', prism, prism', withPrism, iso, swapped, mapping, _Left, failing, ignored, _1)
+import Control.Lens (preview, Lens', Traversal', Iso', Choice, Optic', alongside, Prism', prism, prism', withPrism, iso, swapped, mapping, _Left, failing, ignored, _1)
 import Control.Applicative
 
 type Parser a = Parsec Text () a
@@ -26,21 +26,20 @@ withPrism' p cont = withPrism p $ \build match ->
 focusing :: Lens' s Text -> Lens' (s, Context) (Text, Context)
 focusing focus = alongside (focus . emptyContext) id . _1
 
-manyOf :: Pprism Text a -> Ptraversal Text Text -> Ptraversal Text a
-manyOf single negative =
-  many' (andThen single negative) . mergeContext
-    where
-      mergeContext :: Iso' ((a,Text), Context) (a, Context)
-      mergeContext = iso (\((x,negative), Context ctx) -> (x, Context (negative <> ctx))) (\(x, ctx) -> ((x,""), ctx))
-
 emptyContext :: Iso' Text (Text, Context)
 emptyContext = iso (\txt -> (txt, Context "")) (\(txt, Context rest) -> txt <> rest)
 
-some' :: Pprism Text a -> Ptraversal Text a
+some' :: Ptraversal Text a -> Ptraversal Text a
 some' p = andThen' p (many' p)
 
-many' :: Pprism Text a -> Ptraversal Text a
+many' :: Ptraversal Text a -> Ptraversal Text a
 many' p = failing (some' p) ignored
+
+newtype ChoiceTraversal a b = ChoiceTraversal { unChoiceTraversal :: Ptraversal a b }
+
+choice' :: [ChoiceTraversal a b] -> Ptraversal a b
+choice' (ChoiceTraversal p:ps) = failing p (choice' ps)
+choice' [] = ignored
 
 newtype ChoicePrism a b = ChoicePrism { unChoicePrism :: Pprism a b }
 
@@ -82,19 +81,20 @@ choice ps = unChoicePrism $ go 0 ps
     build (Right y, ctx) = b' (y, ctx)
    in prism' build match
 
--- how can second fail?
--- afb never gets invoked, t is just s
-andThen' :: Pprism Text x -> Ptraversal Text x -> Ptraversal Text x
-andThen' first afbsft =
-  let afbsft' afb s = withPrism' first $ \build match ->
-                case match s of
-                  Nothing -> pure s
-                  Just (a, Context unconsumed) ->
-                    let fb = afb (a, Context "")
-                        ft = afbsft afb (unconsumed, Context "")
-                        buildFirstBefore (b, Context ctx) (s, Context ctx') = build (b, Context (ctx <> s <> ctx'))
-                    in buildFirstBefore <$> fb <*> ft
-  in afbsft'
+
+-- takes traversal unlike andThen, but requires same target type
+-- does this run the first traversal twice?
+-- do we need to enforce that the first returns only 1?
+andThen' :: Ptraversal a x -> Ptraversal Text x -> Ptraversal a x
+andThen' afbsft afbsft' afb s =
+  case preview afbsft s of
+    Nothing -> pure s
+    Just (a, Context unconsumed) ->
+      let fb = afb (a, Context "")
+          ft = afbsft' afb (unconsumed, Context "")
+          ab' (b, Context ctx) (s, Context ctx') = (b, Context (ctx <> s <> ctx'))
+          fb' =  ab' <$> fb <*> ft
+      in afbsft (const fb') s
 
 andThen :: Pprism a x -> Pprism Text y -> Pprism a (x, y)
 andThen first second = withPrism' first $ \b m ->
