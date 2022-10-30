@@ -7,7 +7,7 @@ module LazyParseTransforms where
 import Data.Text as T
 
 import Text.Parsec hiding (choice)
-import Control.Lens (preview, Lens', Traversal', Iso', Choice, Optic', alongside, Prism', prism, prism', withPrism, iso, swapped, mapping, _Left, failing, ignored, _1)
+import Control.Lens (chosen, preview, Lens', Traversal', Iso', Choice, Optic', alongside, Prism', prism, prism', withPrism, iso, swapped, mapping, _Left, failing, ignored, _1)
 import Control.Applicative
 
 type Parser a = Parsec Text () a
@@ -30,7 +30,7 @@ emptyContext :: Iso' Text (Text, Context)
 emptyContext = iso (\txt -> (txt, Context "")) (\(txt, Context rest) -> txt <> rest)
 
 some' :: Ptraversal Text a -> Ptraversal Text a
-some' p = andThen' p (many' p)
+some' p = andThen' p (many' p) . alongside chosen id
 
 many' :: Ptraversal Text a -> Ptraversal Text a
 many' p = failing (some' p) ignored
@@ -85,15 +85,18 @@ choice ps = unChoicePrism $ go 0 ps
 -- takes traversal unlike andThen, but requires same target type
 -- does this run the first traversal twice?
 -- do we need to enforce that the first returns only 1?
-andThen' :: Ptraversal a x -> Ptraversal Text x -> Ptraversal a x
+andThen' :: Ptraversal a x -> Ptraversal Text y -> Ptraversal a (Either x y)
 andThen' afbsft afbsft' afb s =
   case preview afbsft s of
     Nothing -> pure s
     Just (a, Context unconsumed) ->
-      let fb = afb (a, Context "")
-          ft = afbsft' afb (unconsumed, Context "")
-          ab' (b, Context ctx) (s, Context ctx') = (b, Context (ctx <> s <> ctx'))
-          fb' =  ab' <$> fb <*> ft
+      let fb = afb (Left a, Context "" [])
+          afb' (a,ctx) = onlyIfRight a ctx <$> afb (Right a, ctx)
+          onlyIfRight _ _ (Right b, ctx') = (b, ctx')
+          onlyIfRight a ctx (Left _, _) = (a, ctx)
+          ft' = afbsft' afb' (unconsumed, Context "")
+          ab' (Left b, Context ctx _) (s, Context ctx') = (b, Context (ctx <> s <> ctx'))
+          fb' =  ab' <$> fb <*> ft'
       in afbsft (const fb') s
 
 andThen :: Pprism a x -> Pprism Text y -> Pprism a (x, y)
