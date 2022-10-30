@@ -11,7 +11,7 @@ import Control.Lens (preview, Lens', Traversal', Iso', Choice, Optic', alongside
 import Control.Applicative
 
 type Parser a = Parsec Text () a
-newtype Context = Context Text deriving Show
+data Context = Context Text [Text] deriving Show
 type P p f a b = Optic' p f (a, Context) (b, Context)
 type Pprism a b = forall p f. (Choice p, Applicative f) => P p f a b
 type Ptraversal a b = forall f. (Applicative f) => P (->) f a b
@@ -26,8 +26,21 @@ withPrism' p cont = withPrism p $ \build match ->
 focusing :: Lens' s Text -> Lens' (s, Context) (Text, Context)
 focusing focus = alongside (focus . emptyContext) id . _1
 
+skipping :: Pprism Text Text -> Pprism s a -> Pprism s a
+skipping skip want =
+  withPrism' want $ \b m ->
+    withPrism' skip $ \b' m' ->
+      let match s = case m s of
+            Just original@(a, Context unconsumed skip) ->
+              case m' (unconsumed, Context "" []) of
+                Just (toSkip, Context unconsumed' _) -> Just (a, Context unconsumed' (toSkip:skip))
+                Nothing -> Just original
+            Nothing -> Nothing
+          build (a, Context unconsumed (skip:rest)) = b (a, Context (skip <> unconsumed) rest)
+      in prism' build match
+
 emptyContext :: Iso' Text (Text, Context)
-emptyContext = iso (\txt -> (txt, Context "")) (\(txt, Context rest) -> txt <> rest)
+emptyContext = iso (\txt -> (txt, Context "" [])) (\(txt, Context rest [skip]) -> txt <> skip <> rest)
 
 some' :: Ptraversal Text a -> Ptraversal Text a
 some' p = andThen' p (many' p)
@@ -89,33 +102,33 @@ andThen' :: Ptraversal a x -> Ptraversal Text x -> Ptraversal a x
 andThen' afbsft afbsft' afb s =
   case preview afbsft s of
     Nothing -> pure s
-    Just (a, Context unconsumed) ->
-      let fb = afb (a, Context "")
-          ft = afbsft' afb (unconsumed, Context "")
-          ab' (b, Context ctx) (s, Context ctx') = (b, Context (ctx <> s <> ctx'))
-          fb' =  ab' <$> fb <*> ft
+    Just (a, Context unconsumed skip) ->
+      let fb = afb (a, Context "" [])
+          ft' = afbsft' afb (unconsumed, Context "" skip)
+          ab' (b, Context ctx _) (s, Context ctx' skip') = (b, Context (ctx <> s <> ctx') skip')
+          fb' =  ab' <$> fb <*> ft'
       in afbsft (const fb') s
 
 andThen :: Pprism a x -> Pprism Text y -> Pprism a (x, y)
 andThen first second = withPrism' first $ \b m ->
   let
     match (a, ctx) = case m (a, ctx) of
-      Just (x, (Context unconsumed)) -> withPrism' second $ \b' m' ->
-        case m' (unconsumed, (Context "")) of
-          Just (y, unconsumed') -> Just ((x,y), unconsumed')
+      Just (x, (Context unconsumed skip)) -> withPrism' second $ \b' m' ->
+        case m' (unconsumed, (Context "" skip)) of
+          Just (y, ctx') -> Just ((x,y), ctx')
           Nothing -> Nothing
       Nothing -> Nothing
 
     build ((x,y), ctx) = withPrism' second $ \b' m' ->
       case b' (y, ctx) of
-         (t, Context ctx') -> b (x, (Context (t <> ctx')))
+         (t, Context ctx' skip') -> b (x, (Context (t <> ctx') skip'))
    in prism' build match
 
 parseInContext :: Parser a -> (Text, Context) -> Maybe (a, Context)
-parseInContext p (input, (Context after)) = eitherToMaybe $
+parseInContext p (input, (Context after skip)) = eitherToMaybe $
   parse (contextualise <$> p <*> getInput) "" input
   where
-    contextualise parsed unconsumed = (parsed, Context (unconsumed <> after))
+    contextualise parsed unconsumed = (parsed, Context (unconsumed <> after) skip)
     eitherToMaybe e = case e of
             Left _ -> Nothing
-            Right x -> Just x
+            Right x -> Just                                                                                                                                                                         x

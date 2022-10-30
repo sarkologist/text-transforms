@@ -24,19 +24,19 @@ i :: Pprism Text Italic
 i = prism' build match
   where
     match = parseInContext $ Italic . pack <$> withinMany (char '*') (noneOf (['*']))
-    build (Italic txt, Context after) = ("*" <> txt <> "*", Context after)
+    build (Italic txt, ctx) = ("*" <> txt <> "*", ctx)
 
 noti :: Pprism Text Text
 noti = prism' build match
   where
     match = parseInContext $ pack <$> many (noneOf (['*']))
-    build (txt, Context after) = (txt, Context after)
+    build (txt, ctx) = (txt, ctx)
 
 h :: Int ->  Pprism Text Header
 h n = prism' build match
   where
     match = parseInContext $ Header n . pack <$> between (string (hashes n) *> char ' ') endOfLine (many1 (noneOf ['\n']))
-    build (Header k txt, Context after) = (pack (hashes k) <> " " <> txt <> "\n" , Context after)
+    build (Header k txt, ctx) = (pack (hashes k) <> " " <> txt <> "\n" , ctx)
 
     hashes k = Prelude.take k (repeat '#')
 
@@ -65,7 +65,7 @@ notheader :: Pprism Text Text
 notheader = prism' build match
   where
     match = parseInContext $ pack <$> many (noneOf (['#']))
-    build (txt, Context after) = (txt, Context after)
+    build (txt, ctx) = (txt, ctx)
 
 eitherToMaybe e = case e of
         Left _ -> Nothing
