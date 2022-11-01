@@ -50,17 +50,6 @@ headers = choice' [
   , ChoiceTraversal (h 6)
   ]
 
-headersPrism :: Pprism Text (Header, Int)
-headersPrism = choice [
-    ChoicePrism (h 1)
-  , ChoicePrism (h 2)
-  , ChoicePrism (h 3)
-  , ChoicePrism (h 4)
-  , ChoicePrism (h 5)
-  , ChoicePrism (h 6)
-  ]
-
-
 notheader :: Pprism Text Text
 notheader = prism' build match
   where
