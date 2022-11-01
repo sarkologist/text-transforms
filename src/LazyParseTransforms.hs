@@ -35,8 +35,6 @@ choice' :: [ChoiceTraversal a b] -> Ptraversal a b
 choice' (ChoiceTraversal p:ps) = failing p (choice' ps)
 choice' [] = ignored
 
-newtype ChoicePrism a b = ChoicePrism { unChoicePrism :: Pprism a b }
-
 -- unlike `ignored` supports different types
 -- problem: double running of afbst
 (<||>) :: Ptraversal a x -> Ptraversal a y -> Ptraversal a (Either x y)
