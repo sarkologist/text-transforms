@@ -31,7 +31,7 @@ emptyContext :: Iso' Text (Text, Context)
 emptyContext = iso (\txt -> (txt, Context "")) (\(txt, Context rest) -> txt <> rest)
 
 some' :: Ptraversal Text a -> Ptraversal Text a
-some' p = andThen' p (many' p) . alongside chosen id
+some' p = andThen p (many' p) . alongside chosen id
 
 many' :: Ptraversal Text a -> Ptraversal Text a
 many' p = failing (some' p) ignored
@@ -84,8 +84,8 @@ choice ps = unChoicePrism $ go 0 ps
 
 
 -- problem: double running of afbst
-andThen' :: Ptraversal a x -> Ptraversal Text y -> Ptraversal a (Either x y)
-andThen' afbsft afbsft' afb'' s =
+andThen :: Ptraversal a x -> Ptraversal Text y -> Ptraversal a (Either x y)
+andThen afbsft afbsft' afb'' s =
   case lastOf afbsft s of
    Just (_, Context unconsumed) ->
      let merge (a, Context rebuilt) (txt, Context ctx) = (a, Context (fromMaybe (error "unconsumed was consumed") (stripSuffix unconsumed rebuilt) <> txt <> ctx))
@@ -101,21 +101,6 @@ andThen' afbsft afbsft' afb'' s =
 
         onlyIfLeft _ _ (Left b, ctx') = (b, ctx')
         onlyIfLeft a ctx (Right _, _) = (a, ctx)
-
-andThen :: Pprism a x -> Pprism Text y -> Pprism a (x, y)
-andThen first second = withPrism' first $ \b m ->
-  let
-    match (a, ctx) = case m (a, ctx) of
-      Just (x, (Context unconsumed)) -> withPrism' second $ \b' m' ->
-        case m' (unconsumed, (Context "")) of
-          Just (y, unconsumed') -> Just ((x,y), unconsumed')
-          Nothing -> Nothing
-      Nothing -> Nothing
-
-    build ((x,y), ctx) = withPrism' second $ \b' m' ->
-      case b' (y, ctx) of
-         (t, Context ctx') -> b (x, (Context (t <> ctx')))
-   in prism' build match
 
 parseInContext :: Parser a -> (Text, Context) -> Maybe (a, Context)
 parseInContext p (input, (Context after)) = eitherToMaybe $
