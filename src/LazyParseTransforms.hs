@@ -7,7 +7,8 @@ module LazyParseTransforms where
 import Data.Text as T
 
 import Text.Parsec hiding (choice)
-import Control.Lens (chosen, preview, Lens', Traversal', Iso', Choice, Optic', alongside, Prism', prism, prism', withPrism, iso, swapped, mapping, _Left, failing, ignored, _1)
+import Data.Maybe
+import Control.Lens hiding (Context)
 import Control.Applicative
 
 type Parser a = Parsec Text () a
@@ -82,22 +83,24 @@ choice ps = unChoicePrism $ go 0 ps
    in prism' build match
 
 
--- takes traversal unlike andThen, but requires same target type
--- does this run the first traversal twice?
--- do we need to enforce that the first returns only 1?
+-- problem: double running of afbst
 andThen' :: Ptraversal a x -> Ptraversal Text y -> Ptraversal a (Either x y)
-andThen' afbsft afbsft' afb s =
-  case preview afbsft s of
-    Nothing -> pure s
-    Just (a, Context unconsumed) ->
-      let fb = afb (Left a, Context "" [])
-          afb' (a,ctx) = onlyIfRight a ctx <$> afb (Right a, ctx)
-          onlyIfRight _ _ (Right b, ctx') = (b, ctx')
-          onlyIfRight a ctx (Left _, _) = (a, ctx)
-          ft' = afbsft' afb' (unconsumed, Context "")
-          ab' (Left b, Context ctx _) (s, Context ctx') = (b, Context (ctx <> s <> ctx'))
-          fb' =  ab' <$> fb <*> ft'
-      in afbsft (const fb') s
+andThen' afbsft afbsft' afb'' s =
+  case lastOf afbsft s of
+   Just (_, Context unconsumed) ->
+     let merge (a, Context rebuilt) (txt, Context ctx) = (a, Context (fromMaybe (error "unconsumed was consumed") (stripSuffix unconsumed rebuilt) <> txt <> ctx))
+         ft' = afbsft' afb' (unconsumed, Context "")
+     in merge <$> afbsft afb s <*> ft'
+   Nothing -> pure s
+
+  where afb  (a,ctx) = onlyIfLeft a ctx <$> afb'' (Left a, ctx)
+        afb' (a,ctx) = onlyIfRight a ctx <$> afb'' (Right a, ctx)
+
+        onlyIfRight _ _ (Right b, ctx') = (b, ctx')
+        onlyIfRight a ctx (Left _, _) = (a, ctx)
+
+        onlyIfLeft _ _ (Left b, ctx') = (b, ctx')
+        onlyIfLeft a ctx (Right _, _) = (a, ctx)
 
 andThen :: Pprism a x -> Pprism Text y -> Pprism a (x, y)
 andThen first second = withPrism' first $ \b m ->
