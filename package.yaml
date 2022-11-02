@@ -42,6 +42,7 @@ tests:
     - base
     - tasty
     - tasty-hunit
+    - tasty-hspec
     - text-transforms
     build-tools:
       - tasty-discover
