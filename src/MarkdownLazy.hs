@@ -29,7 +29,7 @@ i = prism' build match
 noti :: Pprism Text Text
 noti = prism' build match
   where
-    match = parseInContext $ pack <$> many (noneOf (['*']))
+    match = parseInContext $ pack <$> many1 (noneOf (['*']))
     build (txt, Context after) = (txt, Context after)
 
 h :: Int ->  Pprism Text Header
@@ -38,7 +38,7 @@ h n = prism' build match
     match = parseInContext $ Header n . pack <$> between (string (hashes n) *> char ' ') endOfLine (many1 (noneOf ['\n']))
     build (Header k txt, Context after) = (pack (hashes k) <> " " <> txt <> "\n" , Context after)
 
-    hashes k = Prelude.take k (repeat '#')
+    hashes k = Prelude.take k (Prelude.repeat '#')
 
 headers :: Ptraversal Text Header
 headers = choice' [
@@ -53,12 +53,11 @@ headers = choice' [
 notheader :: Pprism Text Text
 notheader = prism' build match
   where
-    match = parseInContext $ pack <$> many (noneOf (['#']))
+    match = parseInContext $ pack <$> many1 (noneOf (['#']))
     build (txt, Context after) = (txt, Context after)
 
-eitherToMaybe e = case e of
-        Left _ -> Nothing
-        Right x -> Just x
+allTheHeaders :: Ptraversal Text (Either Header Text)
+allTheHeaders = many' (headers <||> notheader)
 
 makeLenses ''Italic
 makeLenses ''Header

@@ -1,27 +1,19 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
-import MarkdownParse (everything)
-import qualified Markdown
-import Anki
-
-import Text.Parsec
-import Lucid
+import MarkdownLazy
+import LazyParseTransforms
+import Control.Lens
 
 import qualified Data.Text as T
-import qualified Data.Text.Lazy.IO as LTIO
+import qualified Data.Text.IO as TIO
 import qualified Control.Foldl as F
 
 import Turtle as T (stdin, lineToText, inproc, die, empty, fold)
 
 getText = T.fold stdin (F.foldMap (\l -> lineToText l <> "\n") id)
 
+unindentHeaders = flip over (\level -> max (level-1) 1)  (text . allTheHeaders . _1 . _Left . level)
+
 main :: IO ()
-main = do
-  source <- getText
-  case parse everything "" source of
-    Left err -> die (T.pack (show err))
-    Right parsed -> do
-      putStrLn . show . Markdown.unindentAll $ parsed
-
-
+main = TIO.putStr . unindentHeaders =<< getText
