@@ -59,7 +59,11 @@ choice' [] = ignored
   in case getLast (getConst constt) of
        Just (_, Context unconsumed) ->
          let ft' = afbsft' afb' (unconsumed, Context "")
-             merge (a, Context rebuilt) (txt, Context ctx) = (a, Context (fromMaybe (error "unconsumed was consumed") (stripSuffix unconsumed rebuilt) <> txt <> ctx))
+             merge (a, Context rebuilt) (txt, Context ctx) = (a, Context (actuallyConsumed rebuilt <> txt <> ctx))
+             actuallyConsumed rebuilt | rebuilt == "" = unconsumed
+             actuallyConsumed rebuilt | otherwise =
+               fromMaybe (error . unpack $ "unconsumed was consumed: \"" <> unconsumed <> "\" / \"" <> rebuilt <> "\"") $
+                 (stripSuffix unconsumed rebuilt)
          in merge <$> ft <*> ft'
        Nothing -> pure s
 
