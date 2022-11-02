@@ -25,9 +25,8 @@ focusing focus = alongside (focus . text) id . _1
 text :: Iso' Text (Text, Context)
 text = iso (\txt -> (txt, Context "")) (\(txt, Context rest) -> txt <> rest)
 
--- TODO: double run of p
 some' :: Ptraversal Text a -> Ptraversal Text a
-some' p = failing ((p ||> many' p) . alongside chosen id) p
+some' p = (p ||>? many' p) . alongside chosen id
 
 many' :: Ptraversal Text a -> Ptraversal Text a
 many' p = failing (some' p) ignored
@@ -48,14 +47,12 @@ choice' [] = ignored
   where aConstfb  (a,ctx) = onlyIfLeft a ctx <$> Pair (Const (Any True)) (afb'' (Left a, ctx))
         afb' (a,ctx) = onlyIfRight a ctx <$> afb'' (Right a, ctx)
 
-        onlyIfRight _ _ (Right b, ctx') = (b, ctx')
-        onlyIfRight a ctx (Left _, _) = (a, ctx)
+(||>), (||>?) :: Ptraversal a x -> Ptraversal Text y -> Ptraversal a (Either x y)
+(||>) = andThen True
+(||>?) = andThen False
 
-        onlyIfLeft _ _ (Left b, ctx') = (b, ctx')
-        onlyIfLeft a ctx (Right _, _) = (a, ctx)
-
-(||>) :: Ptraversal a x -> Ptraversal Text y -> Ptraversal a (Either x y)
-(||>) afbsft afbsft' afb'' s =
+andThen :: Bool -> Ptraversal a x -> Ptraversal Text y -> Ptraversal a (Either x y)
+andThen rightMustSucceed afbsft afbsft' afb'' s =
   let Pair constt ft = afbsft aConstfb s
   in case getLast (getConst constt) of
        Just (_, Context unconsumed) ->
@@ -68,17 +65,17 @@ choice' [] = ignored
                    fromMaybe (error . unpack $ "unconsumed was consumed: \"" <> unconsumed <> "\" / \"" <> rebuilt <> "\"") $
                      (stripSuffix unconsumed rebuilt)
              in merge <$> ft <*> ft'
-           Any False -> pure s
+           Any False -> if rightMustSucceed then pure s else ft
        Nothing -> pure s
 
   where aConstfb  (a,ctx) = onlyIfLeft a ctx <$> Pair (Const (Last (Just (a,ctx)))) (afb'' (Left a, ctx))
         aConstfb' (a,ctx) = onlyIfRight a ctx <$> Pair (Const (Any True)) (afb'' (Right a, ctx))
 
-        onlyIfRight _ _ (Right b, ctx') = (b, ctx')
-        onlyIfRight a ctx (Left _, _) = (a, ctx)
+onlyIfRight _ _ (Right b, ctx') = (b, ctx')
+onlyIfRight a ctx (Left _, _) = (a, ctx)
 
-        onlyIfLeft _ _ (Left b, ctx') = (b, ctx')
-        onlyIfLeft a ctx (Right _, _) = (a, ctx)
+onlyIfLeft _ _ (Left b, ctx') = (b, ctx')
+onlyIfLeft a ctx (Right _, _) = (a, ctx)
 
 parseInContext :: Parser a -> (Text, Context) -> Maybe (a, Context)
 parseInContext p (input, (Context after)) = eitherToMaybe $
