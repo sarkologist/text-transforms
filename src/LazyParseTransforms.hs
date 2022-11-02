@@ -8,6 +8,8 @@ import Data.Text as T
 
 import Text.Parsec hiding (choice)
 import Data.Maybe
+import Data.Monoid
+import Data.Functor.Product
 import Control.Lens hiding (Context)
 import Control.Applicative
 
@@ -36,13 +38,13 @@ choice' (ChoiceTraversal p:ps) = failing p (choice' ps)
 choice' [] = ignored
 
 -- unlike `ignored` supports different types
--- problem: double running of afbst
 (<||>) :: Ptraversal a x -> Ptraversal a y -> Ptraversal a (Either x y)
 (<||>) afbst afbst' afb'' s =
-  case preview afbst s of
-    Just _ -> afbst afb s
-    Nothing -> afbst' afb' s
-  where afb  (a,ctx) = onlyIfLeft a ctx <$> afb'' (Left a, ctx)
+  let Pair constt ft = afbst aConstfb s
+  in case getAny (getConst constt) of
+       True -> ft
+       False -> afbst' afb' s
+  where aConstfb  (a,ctx) = onlyIfLeft a ctx <$> Pair (Const (Any True)) (afb'' (Left a, ctx))
         afb' (a,ctx) = onlyIfRight a ctx <$> afb'' (Right a, ctx)
 
         onlyIfRight _ _ (Right b, ctx') = (b, ctx')
@@ -51,17 +53,17 @@ choice' [] = ignored
         onlyIfLeft _ _ (Left b, ctx') = (b, ctx')
         onlyIfLeft a ctx (Right _, _) = (a, ctx)
 
--- problem: double running of afbst
 (||>) :: Ptraversal a x -> Ptraversal Text y -> Ptraversal a (Either x y)
 (||>) afbsft afbsft' afb'' s =
-  case lastOf afbsft s of
-   Just (_, Context unconsumed) ->
-     let merge (a, Context rebuilt) (txt, Context ctx) = (a, Context (fromMaybe (error "unconsumed was consumed") (stripSuffix unconsumed rebuilt) <> txt <> ctx))
-         ft' = afbsft' afb' (unconsumed, Context "")
-     in merge <$> afbsft afb s <*> ft'
-   Nothing -> pure s
+  let Pair constt ft = afbsft aConstfb s
+  in case getLast (getConst constt) of
+       Just (_, Context unconsumed) ->
+         let ft' = afbsft' afb' (unconsumed, Context "")
+             merge (a, Context rebuilt) (txt, Context ctx) = (a, Context (fromMaybe (error "unconsumed was consumed") (stripSuffix unconsumed rebuilt) <> txt <> ctx))
+         in merge <$> ft <*> ft'
+       Nothing -> pure s
 
-  where afb  (a,ctx) = onlyIfLeft a ctx <$> afb'' (Left a, ctx)
+  where aConstfb  (a,ctx) = onlyIfLeft a ctx <$> Pair (Const (Last (Just (a,ctx)))) (afb'' (Left a, ctx))
         afb' (a,ctx) = onlyIfRight a ctx <$> afb'' (Right a, ctx)
 
         onlyIfRight _ _ (Right b, ctx') = (b, ctx')
