@@ -25,8 +25,9 @@ focusing focus = alongside (focus . text) id . _1
 text :: Iso' Text (Text, Context)
 text = iso (\txt -> (txt, Context "")) (\(txt, Context rest) -> txt <> rest)
 
+-- TODO: double run of p
 some' :: Ptraversal Text a -> Ptraversal Text a
-some' p = (p ||> many' p) . alongside chosen id
+some' p = failing ((p ||> many' p) . alongside chosen id) p
 
 many' :: Ptraversal Text a -> Ptraversal Text a
 many' p = failing (some' p) ignored
@@ -41,9 +42,9 @@ choice' [] = ignored
 (<||>) :: Ptraversal a x -> Ptraversal a y -> Ptraversal a (Either x y)
 (<||>) afbst afbst' afb'' s =
   let Pair constt ft = afbst aConstfb s
-  in case getAny (getConst constt) of
-       True -> ft
-       False -> afbst' afb' s
+  in case getConst constt of
+       Any True -> ft
+       Any False -> afbst' afb' s
   where aConstfb  (a,ctx) = onlyIfLeft a ctx <$> Pair (Const (Any True)) (afb'' (Left a, ctx))
         afb' (a,ctx) = onlyIfRight a ctx <$> afb'' (Right a, ctx)
 
@@ -58,17 +59,20 @@ choice' [] = ignored
   let Pair constt ft = afbsft aConstfb s
   in case getLast (getConst constt) of
        Just (_, Context unconsumed) ->
-         let ft' = afbsft' afb' (unconsumed, Context "")
-             merge (a, Context rebuilt) (txt, Context ctx) = (a, Context (actuallyConsumed rebuilt <> txt <> ctx))
-             actuallyConsumed rebuilt | rebuilt == "" = unconsumed
-             actuallyConsumed rebuilt | otherwise =
-               fromMaybe (error . unpack $ "unconsumed was consumed: \"" <> unconsumed <> "\" / \"" <> rebuilt <> "\"") $
-                 (stripSuffix unconsumed rebuilt)
-         in merge <$> ft <*> ft'
+         let Pair constt' ft' = afbsft' aConstfb' (unconsumed, Context "")
+         in case getConst constt' of
+           Any True ->
+             let merge (a, Context rebuilt) (txt, Context ctx) = (a, Context (actuallyConsumed rebuilt <> txt <> ctx))
+                 actuallyConsumed rebuilt | rebuilt == "" = unconsumed
+                 actuallyConsumed rebuilt | otherwise =
+                   fromMaybe (error . unpack $ "unconsumed was consumed: \"" <> unconsumed <> "\" / \"" <> rebuilt <> "\"") $
+                     (stripSuffix unconsumed rebuilt)
+             in merge <$> ft <*> ft'
+           Any False -> pure s
        Nothing -> pure s
 
   where aConstfb  (a,ctx) = onlyIfLeft a ctx <$> Pair (Const (Last (Just (a,ctx)))) (afb'' (Left a, ctx))
-        afb' (a,ctx) = onlyIfRight a ctx <$> afb'' (Right a, ctx)
+        aConstfb' (a,ctx) = onlyIfRight a ctx <$> Pair (Const (Any True)) (afb'' (Right a, ctx))
 
         onlyIfRight _ _ (Right b, ctx') = (b, ctx')
         onlyIfRight a ctx (Left _, _) = (a, ctx)
