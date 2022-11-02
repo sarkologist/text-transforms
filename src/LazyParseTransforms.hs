@@ -1,12 +1,10 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 module LazyParseTransforms where
 
 import Data.Text as T
 
-import Text.Parsec hiding (choice)
+import Text.Parsec
 import Data.Maybe
 import Data.Monoid
 import Data.Functor.Product
