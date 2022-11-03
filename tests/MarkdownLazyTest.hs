@@ -43,16 +43,20 @@ spec_markdown_lazy = do
 
    it "fail <||> succeed" $ do
      flip set "_" (text . (h 1 <||> i) . _1 . _Right . unItalic)
-       "*i*# h1\n" `shouldBe` "*_*# h1\n"
+       "*i*# h1\n" `shouldBe`
+       "*_*# h1\n"
 
    it "succeed <||> fail" $ do
      flip set "_" (text . (h 1 <||> i) . _1 . _Left . content)
-       "# h1\n*i*" `shouldBe` "# _\n*i*"
+       "# h1\n*i*" `shouldBe`
+       "# _\n*i*"
 
    it "<||> inside many: left succeeds" $ do
      flip set "_" (text . many' (i <||> h 1) . _1 . _Left . unItalic)
-       "*i*# h1\n" `shouldBe` "*_*# h1\n"
+       "*i*# h1\n" `shouldBe`
+       "*_*# h1\n"
 
    it "<||> inside many: right succeeds" $ do
      flip set "_" (text . many' (i <||> h 1) . _1 . _Right . content)
-       "*i*# h1\n" `shouldBe` "*i*# _\n"
+       "*i*# h1\n" `shouldBe`
+       "*i*# _\n"
