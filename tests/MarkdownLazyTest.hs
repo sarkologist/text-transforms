@@ -31,6 +31,11 @@ spec_markdown_lazy = do
        "# *i* not i\n not h" `shouldBe`
        "# *x* not i\n not h"
 
+   it "focusing after ||>" $ do
+     flip set "_" (text . (h 1 ||> i) . focusing (_Left . content) . i . _1 . unItalic)
+       "# *i inside* not i\n*i outside*" `shouldBe`
+       "# *_* not i\n*i outside*"
+
    it "focusing after many" $ do
      flip set "x" (text . many' (h 1) . focusing content . i . _1 . unItalic)
        "# *i* not i\n# *i2* not i2\n# no i\n *i* not i" `shouldBe`

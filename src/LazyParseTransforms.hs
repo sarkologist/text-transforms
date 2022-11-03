@@ -17,8 +17,8 @@ type P p f a b = Optic' p f (a, Context) (b, Context)
 type Pprism a b = forall p f. (Choice p, Applicative f) => P p f a b
 type Ptraversal a b = forall f. (Applicative f) => P (->) f a b
 
-focusing :: Lens' s Text -> Lens' (s, Context) (Text, Context)
-focusing focus = alongside (focus . text) id . _1
+focusing :: Traversal' s Text -> Ptraversal s Text
+focusing focus = _1 . focus . text
 
 text :: Iso' Text (Text, Context)
 text = iso (\txt -> (txt, Context "")) (\(txt, Context rest) -> txt <> rest)
