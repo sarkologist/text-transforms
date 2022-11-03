@@ -16,11 +16,59 @@ spec_markdown_lazy = do
        "*i*" `shouldBe`
        "*_*"
 
+   describe "||>" $ do
+     it "left" $ do
+       flip set "_" (text . (i ||> h 2) . _1 . _Left . unItalic)
+         "*i*## h2\n" `shouldBe`
+         "*_*## h2\n"
+
+     it "right" $ do
+       flip set "_" (text . (i ||> h 2) . _1 . _Right . content)
+         "*i*## h2\n" `shouldBe`
+         "*i*## _\n"
+
+     it "left fails" $ do
+       flip set "_" (text . (i ||> h 2) . _1 . _Left . unItalic)
+         "not i## h2\n" `shouldBe`
+         "not i## h2\n"
+
+     it "right fails" $ do
+       flip set "_" (text . (i ||> h 2) . _1 . _Left . unItalic)
+         "*i* not header" `shouldBe`
+         "*i* not header"
+
+     describe "inside many" $ do
+       it "_Left" $ do
+         flip set "_" (text . many' (i ||> h 1) . _1 . _Left . unItalic)
+           "*i*# h1\n*i*# h1\n" `shouldBe`
+           "*_*# h1\n*_*# h1\n"
+
+       it "_Right" $ do
+         flip set "_" (text . many' (i ||> h 1) . _1 . _Right . content)
+           "*i*# h1\n*i*# h1\n" `shouldBe`
+           "*i*# _\n*i*# _\n"
+
+   describe "||>?" $ do
+     it "left fails" $ do
+       flip set "_" (text . (i ||>? h 2) . _1 . _Left . unItalic)
+         "not i## h2\n" `shouldBe`
+         "not i## h2\n"
+
+     it "right fails" $ do
+       flip set "_" (text . (i ||>? h 2) . _1 . _Left . unItalic)
+         "*i* not header" `shouldBe`
+         "*_* not header"
+
    describe "many" $ do
      it "many" $ do
        flip set "_" (text . many' i . _1 . unItalic)
          "*i**i2*" `shouldBe`
          "*_**_*"
+
+     it "empty" $ do
+       flip set "_" (text . many' i . _1 . unItalic)
+         "blah" `shouldBe`
+         "blah"
 
      it "indexing into many" $ do
        flip set "_" (text . partsOf (many' i . _1) . ix 1 . unItalic)

@@ -23,11 +23,11 @@ focusing focus = _1 . focus . text
 text :: Iso' Text (Text, Context)
 text = iso (\txt -> (txt, Context "")) (\(txt, Context rest) -> txt <> rest)
 
-some' :: Ptraversal Text a -> Ptraversal Text a
-some' p = (p ||>? many' p) . alongside chosen id
-
 many' :: Ptraversal Text a -> Ptraversal Text a
 many' p = failing (some' p) ignored
+  where
+    some' :: Ptraversal Text a -> Ptraversal Text a
+    some' p = (p ||>? many' p) . alongside chosen id
 
 newtype ChoiceTraversal a b = ChoiceTraversal { unChoiceTraversal :: Ptraversal a b }
 
