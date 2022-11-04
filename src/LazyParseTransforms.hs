@@ -53,7 +53,7 @@ andThen :: Bool -> Ptraversal a x -> Ptraversal Text y -> Ptraversal a (Either x
 andThen rightMustSucceed afbsft afbsft' afb'' s =
   let Pair constt ft = afbsft aConstfb s
   in case getLast (getConst constt) of
-       Just (_, Context unconsumed) ->
+       Just (Context unconsumed) ->
          let Pair constt' ft' = afbsft' aConstfb' (unconsumed, Context "")
          in case getConst constt' of
            Any True ->
@@ -66,7 +66,7 @@ andThen rightMustSucceed afbsft afbsft' afb'' s =
            Any False -> if rightMustSucceed then pure s else ft
        Nothing -> pure s
 
-  where aConstfb  (a,ctx) = onlyIfLeft a ctx <$> Pair (Const (Last (Just (a,ctx)))) (afb'' (Left a, ctx))
+  where aConstfb  (a,ctx) = onlyIfLeft a ctx <$> Pair (Const (Last (Just ctx))) (afb'' (Left a, ctx))
         aConstfb' (a,ctx) = onlyIfRight a ctx <$> Pair (Const (Any True)) (afb'' (Right a, ctx))
 
 onlyIfRight _ _ (Right b, ctx') = (b, ctx')
