@@ -15,6 +15,7 @@ import Control.Lens (prism')
 import Control.Lens.TH
 
 newtype Italic = Italic { _unItalic :: Text } deriving Show
+newtype Strikethrough = Strikethrough { _unStrikethrough :: Text } deriving Show
 data Header = Header {
   _level :: Int,
   _content :: Text
@@ -25,6 +26,12 @@ i = prism' build match
   where
     match = parseInContext $ Italic . pack <$> withinMany (char '*') (noneOf (['*']))
     build (Italic txt, ctx) = ("*" <> txt <> "*", ctx)
+
+strikethrough :: Pprism Text Strikethrough
+strikethrough = prism' build match
+  where
+    match = parseInContext $ Strikethrough . pack <$> withinMany (string "~~") (noneOf (['~']))
+    build (Strikethrough txt, ctx) = ("~~" <> txt <> "~~", ctx)
 
 h :: Int ->  Pprism Text Header
 h n = prism' build match
@@ -54,5 +61,7 @@ allTheHeaders = many' (headers <||> skip "#")
 
 makeLenses ''Italic
 makeLenses ''Header
+makeLenses ''Strikethrough
 makePrisms ''Header
 makePrisms ''Italic
+makePrisms ''Strikethrough

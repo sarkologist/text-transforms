@@ -86,6 +86,11 @@ spec_markdown_lazy = do
          "# *i inside* not i\n*i outside*" `shouldBe`
          "# *_* not i\n*i outside*"
 
+     it "focusing twice inside ||>" $ do
+       flip set "_" (text . ((h 1 . focusing content . strikethrough . focusing unStrikethrough . i) ||> skip "") . _1 . _Left . unItalic)
+         "# ~~*i* s ~~ h\n unconsumed" `shouldBe`
+         "# ~~*_* s ~~ h\n unconsumed"
+
      it "focusing after ||>" $ do
        flip set "_" (text . (h 1 ||> i) . focusing (_Left . content) . i . _1 . unItalic)
          "# *i inside* not i\n*i outside*" `shouldBe`
