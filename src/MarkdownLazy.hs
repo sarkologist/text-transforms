@@ -26,12 +26,6 @@ i = prism' build match
     match = parseInContext $ Italic . pack <$> withinMany (char '*') (noneOf (['*']))
     build (Italic txt, ctx) = ("*" <> txt <> "*", ctx)
 
-noti :: Pprism Text Text
-noti = prism' build match
-  where
-    match = parseInContext $ pack <$> many1 (noneOf (['*']))
-    build (txt, ctx) = (txt, ctx)
-
 h :: Int ->  Pprism Text Header
 h n = prism' build match
   where
@@ -50,14 +44,13 @@ headers = choice' [
   , ChoiceTraversal (h 6)
   ]
 
-notheader :: Pprism Text Text
-notheader = prism' build match
+skip :: [Char] -> Pprism Text Text
+skip toSkip = prism' id match
   where
-    match = parseInContext $ pack <$> many1 (noneOf (['#']))
-    build (txt, ctx) = (txt, ctx)
+    match = parseInContext $ pack <$> many1 (noneOf toSkip)
 
 allTheHeaders :: Ptraversal Text (Either Header Text)
-allTheHeaders = many' (headers <||> notheader)
+allTheHeaders = many' (headers <||> skip "#")
 
 makeLenses ''Italic
 makeLenses ''Header
