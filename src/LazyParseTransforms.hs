@@ -1,5 +1,6 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 module LazyParseTransforms where
 
 import Data.Text as T
@@ -12,16 +13,25 @@ import Control.Lens hiding (Context)
 import Control.Applicative
 
 type Parser a = Parsec Text () a
-newtype Context = Context Text deriving Show
+-- first is unconsumed
+-- second is top-level after `focusing`
+-- which we need to preserve for ||> to know what is unconsumed at top-level
+-- multiple rounds of focusing should preserve the top-level
+data Context = Context Text (Maybe Text) deriving Show
 type P p f a b = Optic' p f (a, Context) (b, Context)
 type Pprism a b = forall p f. (Choice p, Applicative f) => P p f a b
 type Ptraversal a b = forall f. (Applicative f) => P (->) f a b
 
 focusing :: Traversal' s Text -> Ptraversal s Text
-focusing focus = _1 . focus . text
+focusing afbsft afb' (s, ctx@(Context unconsumed maybeTop)) =
+  let afb a = merge <$> afb' (a, Context "" (maybe (Just unconsumed) Just maybeTop))
+      merge (txt, Context unconsumed' _) = txt <> unconsumed'
+      ft = afbsft afb s
+      ft' = (,ctx) <$> ft
+  in ft'
 
 text :: Iso' Text (Text, Context)
-text = iso (\txt -> (txt, Context "")) (\(txt, Context rest) -> txt <> rest)
+text = iso (\txt -> (txt, Context "" Nothing)) (\(txt, Context rest _) -> txt <> rest)
 
 many' :: Ptraversal Text a -> Ptraversal Text a
 many' p = failing (some' p) ignored
@@ -52,21 +62,21 @@ choice' [] = ignored
 andThen :: Bool -> Ptraversal a x -> Ptraversal Text y -> Ptraversal a (Either x y)
 andThen rightMustSucceed afbsft afbsft' afb'' s =
   let Pair constt ft = afbsft aConstfb s
-  in case getLast (getConst constt) of
-       Just (Context unconsumed) ->
-         let Pair constt' ft' = afbsft' aConstfb' (unconsumed, Context "")
+  in case getConst constt of
+       Last (Just unconsumed) ->
+         let Pair constt' ft' = afbsft' aConstfb' (unconsumed, Context "" Nothing)
          in case getConst constt' of
            Any True ->
-             let merge (a, Context rebuilt) (txt, Context ctx) = (a, Context (actuallyConsumed rebuilt <> txt <> ctx))
+             let merge (a, Context rebuilt _) (txt, Context ctx _) = (a, Context (actuallyConsumed rebuilt <> txt <> ctx) Nothing)
                  actuallyConsumed rebuilt | rebuilt == "" = unconsumed
                  actuallyConsumed rebuilt | otherwise =
                    fromMaybe (error . unpack $ "unconsumed was consumed: \"" <> unconsumed <> "\" / \"" <> rebuilt <> "\"") $
                      (stripSuffix unconsumed rebuilt)
              in merge <$> ft <*> ft'
            Any False -> if rightMustSucceed then pure s else ft
-       Nothing -> pure s
+       Last Nothing -> pure s
 
-  where aConstfb  (a,ctx) = onlyIfLeft a ctx <$> Pair (Const (Last (Just ctx))) (afb'' (Left a, ctx))
+  where aConstfb  (a,ctx@(Context unconsumed top)) = onlyIfLeft a ctx <$> Pair (Const (Last (Just (fromMaybe unconsumed top)))) (afb'' (Left a, ctx))
         aConstfb' (a,ctx) = onlyIfRight a ctx <$> Pair (Const (Any True)) (afb'' (Right a, ctx))
 
 onlyIfRight _ _ (Right b, ctx') = (b, ctx')
@@ -76,10 +86,10 @@ onlyIfLeft _ _ (Left b, ctx') = (b, ctx')
 onlyIfLeft a ctx (Right _, _) = (a, ctx)
 
 parseInContext :: Parser a -> (Text, Context) -> Maybe (a, Context)
-parseInContext p (input, (Context after)) = eitherToMaybe $
+parseInContext p (input, (Context after top)) = eitherToMaybe $
   parse (contextualise <$> p <*> getInput) "" input
   where
-    contextualise parsed unconsumed = (parsed, Context (unconsumed <> after))
+    contextualise parsed unconsumed = (parsed, Context (unconsumed <> after) top)
     eitherToMaybe e = case e of
             Left _ -> Nothing
             Right x -> Just x
