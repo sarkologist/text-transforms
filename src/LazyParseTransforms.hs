@@ -22,6 +22,9 @@ type P p f a b = Optic' p f (a, Context) (b, Context)
 type Pprism a b = forall p f. (Choice p, Applicative f) => P p f a b
 type Ptraversal a b = forall f. (Applicative f) => P (->) f a b
 
+-- prepare new Context for text at `focus`, no different than with top-level text
+-- meanwhile save top-level unconsumed context in second component of `Context`
+-- so that ||> has access to it
 focusing :: Traversal' s Text -> Ptraversal Text a -> Ptraversal s a
 focusing focus go afb s@(_, ctx@(Context unconsumed maybeTop)) =
   let unconsumed_top = maybe (Just unconsumed) Just maybeTop
