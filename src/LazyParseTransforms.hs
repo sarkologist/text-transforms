@@ -22,13 +22,12 @@ type P p f a b = Optic' p f (a, Context) (b, Context)
 type Pprism a b = forall p f. (Choice p, Applicative f) => P p f a b
 type Ptraversal a b = forall f. (Applicative f) => P (->) f a b
 
-focusing :: Traversal' s Text -> Ptraversal s Text
-focusing afbsft afb' (s, ctx@(Context unconsumed maybeTop)) =
-  let afb a = merge <$> afb' (a, Context "" (maybe (Just unconsumed) Just maybeTop))
-      merge (txt, Context unconsumed' _) = txt <> unconsumed'
-      ft = afbsft afb s
-      ft' = (,ctx) <$> ft
-  in ft'
+focusing :: Traversal' s Text -> Ptraversal Text a -> Ptraversal s a
+focusing focus go afb s@(_, ctx@(Context unconsumed maybeTop)) =
+  let unconsumed_top = maybe (Just unconsumed) Just maybeTop
+      afb' (a, Context unconsumed _) = afb (a, Context unconsumed unconsumed_top)
+      afbsft = _1 . focus . text . go
+  in afbsft afb' s
 
 text :: Iso' Text (Text, Context)
 text = iso (\txt -> (txt, Context "" Nothing)) (\(txt, Context rest _) -> txt <> rest)
