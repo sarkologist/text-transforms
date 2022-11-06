@@ -61,12 +61,12 @@ choice' [] = ignored
 (||>?) = andThen False
 
 andThen :: Bool -> Ptraversal a x -> Ptraversal Text y -> Ptraversal a (Either x y)
-andThen rightMustSucceed afbsft afbsft' afb'' s@(_, Context _ _ youAreHere) =
+andThen rightMustSucceed afbsft afbsft' afb'' s@(_, Context _ above youAreHere) =
   let Pair constt ft = afbsft aConstfb s
   in case getConst constt of
-       Last (Just (unconsumed_bottom, above)) ->
-         let unconsumed = fromMaybe unconsumed_bottom $ preview (element (Prelude.length above - youAreHere - 1)) above
-             Pair constt' ft' = afbsft' aConstfb' (unconsumed, Context "" [] youAreHere)
+       Last (Just (unconsumed_bottom, above_bottom)) ->
+         let unconsumed = fromMaybe unconsumed_bottom $ preview (element (Prelude.length above_bottom - youAreHere - 1)) above_bottom
+             Pair constt' ft' = afbsft' aConstfb' (unconsumed, Context "" above youAreHere)
          in case getConst constt' of
            Any True ->
              let merge (a, Context rebuilt parent lvl_left) (txt, Context ctx parent' lvl_right) =
