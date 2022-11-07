@@ -21,8 +21,9 @@ type P p f a b = Optic' p f (a, Context) (b, Context)
 type Pprism a b = forall p f. (Choice p, Applicative f) => P p f a b
 type Ptraversal a b = forall f. (Applicative f) => P (->) f a b
 
+-- "vertical" top-down composition:
 -- prepare new Context for text at `focus`
--- meanwhile add current-level unconsumed to `Context`
+-- save current-level unconsumed to `Context`
 focusing :: Traversal' s Text -> Ptraversal Text a -> Ptraversal s a
 focusing focus inside afb s@(_, ctx@(Context unconsumed above lvl)) =
   let outside_afbsft = _1 . focus . textAtLevel (lvl+1) (unconsumed:above) . inside
@@ -60,17 +61,19 @@ choice' [] = ignored
 (||>) = andThen True
 (||>?) = andThen False
 
+-- "horizontal" left-to-right composition:
+-- does not change level, just current-level unconsumed
 andThen :: Bool -> Ptraversal a x -> Ptraversal Text y -> Ptraversal a (Either x y)
-andThen rightMustSucceed afbsft afbsft' afb'' s@(_, Context _ above youAreHere) =
+andThen rightMustSucceed afbsft afbsft' afb'' s@(_, Context _ above lvl) =
   let Pair constt ft = afbsft aConstfb s
   in case getConst constt of
        Last (Just (unconsumed_bottom, above_bottom)) ->
-         let unconsumed = fromMaybe unconsumed_bottom $ preview (element (Prelude.length above_bottom - youAreHere - 1)) above_bottom
-             Pair constt' ft' = afbsft' aConstfb' (unconsumed, Context "" above youAreHere)
+         let unconsumed = fromMaybe unconsumed_bottom $ preview (element (Prelude.length above_bottom - lvl - 1)) above_bottom
+             Pair constt' ft' = afbsft' aConstfb' (unconsumed, Context "" above lvl)
          in case getConst constt' of
            Any True ->
              let merge (a, Context rebuilt _ _) (txt, Context ctx _ _) =
-                   (a, Context (actuallyConsumed rebuilt <> txt <> ctx) above youAreHere)
+                   (a, Context (actuallyConsumed rebuilt <> txt <> ctx) above lvl)
                  actuallyConsumed rebuilt | rebuilt == "" = unconsumed
                  actuallyConsumed rebuilt | otherwise =
                    fromMaybe (error . unpack $ "unconsumed was consumed: \"" <> unconsumed <> "\" / \"" <> rebuilt <> "\"") $
