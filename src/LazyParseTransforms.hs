@@ -1,8 +1,10 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 module LazyParseTransforms where
 
 import Data.Text as T
+import Data.Vector as V
 
 import Text.Parsec
 import Data.Maybe
@@ -12,16 +14,27 @@ import Control.Lens hiding (Context)
 import Control.Applicative
 
 type Parser a = Parsec Text () a
-newtype Context = Context Text deriving Show
+-- first is unconsumed
+-- second is list of unconsumeds after successive `focusing`
+-- which we need to preserve for ||> to know what is unconsumed at the level it is applied
+data Context = Context Text (Vector Text) Int deriving Show
 type P p f a b = Optic' p f (a, Context) (b, Context)
 type Pprism a b = forall p f. (Choice p, Applicative f) => P p f a b
 type Ptraversal a b = forall f. (Applicative f) => P (->) f a b
 
-focusing :: Traversal' s Text -> Ptraversal s Text
-focusing focus = _1 . focus . text
+-- "vertical" top-down composition:
+-- prepare new Context for text at `focus`
+-- save current-level unconsumed to `Context`
+focusing :: Traversal' s Text -> Ptraversal Text a -> Ptraversal s a
+focusing focus inside afb s@(_, ctx@(Context unconsumed above lvl)) =
+  let outside_afbsft = _1 . focus . textAtLevel (lvl+1) (V.snoc above unconsumed) . inside
+  in outside_afbsft afb s
+
+textAtLevel :: Int -> Vector Text -> Iso' Text (Text, Context)
+textAtLevel lvl unconsumeds = iso (\txt -> (txt, Context "" unconsumeds lvl)) (\(txt, Context rest _ _) -> txt <> rest)
 
 text :: Iso' Text (Text, Context)
-text = iso (\txt -> (txt, Context "")) (\(txt, Context rest) -> txt <> rest)
+text = textAtLevel 0 V.empty
 
 many' :: Ptraversal Text a -> Ptraversal Text a
 many' p = failing (some' p) ignored
@@ -49,24 +62,33 @@ choice' [] = ignored
 (||>) = andThen True
 (||>?) = andThen False
 
+-- "horizontal" left-to-right composition:
+-- does not change level, just current-level unconsumed
+-- first crux is passing on remaining unconsumed after left has succeeded
+-- second crux is left may be focused,
+--   in which case we need to retrieve its parent unconsumed
+-- third crux is after left context has been rebuilt,
+--   we need to trim it because unconsumed should now be to the after right, not left
 andThen :: Bool -> Ptraversal a x -> Ptraversal Text y -> Ptraversal a (Either x y)
-andThen rightMustSucceed afbsft afbsft' afb'' s =
+andThen rightMustSucceed afbsft afbsft' afb'' s@(_, Context _ above lvl) =
   let Pair constt ft = afbsft aConstfb s
-  in case getLast (getConst constt) of
-       Just (_, Context unconsumed) ->
-         let Pair constt' ft' = afbsft' aConstfb' (unconsumed, Context "")
+  in case getConst constt of
+       Last (Just (unconsumed_bottom, above_bottom)) ->
+         let unconsumed = fromMaybe unconsumed_bottom (above_bottom !? lvl)
+             Pair constt' ft' = afbsft' aConstfb' (unconsumed, Context "" above lvl)
          in case getConst constt' of
            Any True ->
-             let merge (a, Context rebuilt) (txt, Context ctx) = (a, Context (actuallyConsumed rebuilt <> txt <> ctx))
+             let merge (a, Context rebuilt _ _) (txt, Context ctx _ _) =
+                   (a, Context (actuallyConsumed rebuilt <> txt <> ctx) above lvl)
                  actuallyConsumed rebuilt | rebuilt == "" = unconsumed
                  actuallyConsumed rebuilt | otherwise =
                    fromMaybe (error . unpack $ "unconsumed was consumed: \"" <> unconsumed <> "\" / \"" <> rebuilt <> "\"") $
                      (stripSuffix unconsumed rebuilt)
              in merge <$> ft <*> ft'
            Any False -> if rightMustSucceed then pure s else ft
-       Nothing -> pure s
+       Last Nothing -> pure s
 
-  where aConstfb  (a,ctx) = onlyIfLeft a ctx <$> Pair (Const (Last (Just (a,ctx)))) (afb'' (Left a, ctx))
+  where aConstfb  (a,ctx@(Context unconsumed above _)) = onlyIfLeft a ctx <$> Pair (Const (Last (Just (unconsumed, above)))) (afb'' (Left a, ctx))
         aConstfb' (a,ctx) = onlyIfRight a ctx <$> Pair (Const (Any True)) (afb'' (Right a, ctx))
 
 onlyIfRight _ _ (Right b, ctx') = (b, ctx')
@@ -76,10 +98,10 @@ onlyIfLeft _ _ (Left b, ctx') = (b, ctx')
 onlyIfLeft a ctx (Right _, _) = (a, ctx)
 
 parseInContext :: Parser a -> (Text, Context) -> Maybe (a, Context)
-parseInContext p (input, (Context after)) = eitherToMaybe $
+parseInContext p (input, (Context after above lvl)) = eitherToMaybe $
   parse (contextualise <$> p <*> getInput) "" input
   where
-    contextualise parsed unconsumed = (parsed, Context (unconsumed <> after))
+    contextualise parsed unconsumed = (parsed, Context (unconsumed <> after) above lvl)
     eitherToMaybe e = case e of
             Left _ -> Nothing
             Right x -> Just x
