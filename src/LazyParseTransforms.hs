@@ -64,6 +64,11 @@ choice' [] = ignored
 
 -- "horizontal" left-to-right composition:
 -- does not change level, just current-level unconsumed
+-- first crux is passing on remaining unconsumed after left has succeeded
+-- second crux is left may be focused,
+--   in which case we need to retrieve its parent unconsumed
+-- third crux is after left context has been rebuilt,
+--   we need to trim it because unconsumed should now be to the after right, not left
 andThen :: Bool -> Ptraversal a x -> Ptraversal Text y -> Ptraversal a (Either x y)
 andThen rightMustSucceed afbsft afbsft' afb'' s@(_, Context _ above lvl) =
   let Pair constt ft = afbsft aConstfb s
