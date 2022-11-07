@@ -69,10 +69,8 @@ andThen rightMustSucceed afbsft afbsft' afb'' s@(_, Context _ above youAreHere) 
              Pair constt' ft' = afbsft' aConstfb' (unconsumed, Context "" above youAreHere)
          in case getConst constt' of
            Any True ->
-             let merge (a, Context rebuilt parent lvl_left) (txt, Context ctx parent' lvl_right) =
-                   (a, Context (actuallyConsumed rebuilt <> txt <> ctx)
-                               (if (lvl_left > lvl_right) then parent else parent')
-                               (max lvl_left lvl_right))
+             let merge (a, Context rebuilt _ _) (txt, Context ctx _ _) =
+                   (a, Context (actuallyConsumed rebuilt <> txt <> ctx) above youAreHere)
                  actuallyConsumed rebuilt | rebuilt == "" = unconsumed
                  actuallyConsumed rebuilt | otherwise =
                    fromMaybe (error . unpack $ "unconsumed was consumed: \"" <> unconsumed <> "\" / \"" <> rebuilt <> "\"") $
