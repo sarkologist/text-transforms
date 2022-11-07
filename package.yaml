@@ -30,6 +30,7 @@ dependencies:
 - lucid
 - parsec
 - foldl
+- vector
 
 library:
   source-dirs: src

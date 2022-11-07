@@ -4,6 +4,7 @@
 module LazyParseTransforms where
 
 import Data.Text as T
+import Data.Vector as V
 
 import Text.Parsec
 import Data.Maybe
@@ -16,7 +17,7 @@ type Parser a = Parsec Text () a
 -- first is unconsumed
 -- second is list of unconsumeds after successive `focusing`
 -- which we need to preserve for ||> to know what is unconsumed at the level it is applied
-data Context = Context Text [Text] Int deriving Show
+data Context = Context Text (Vector Text) Int deriving Show
 type P p f a b = Optic' p f (a, Context) (b, Context)
 type Pprism a b = forall p f. (Choice p, Applicative f) => P p f a b
 type Ptraversal a b = forall f. (Applicative f) => P (->) f a b
@@ -26,14 +27,14 @@ type Ptraversal a b = forall f. (Applicative f) => P (->) f a b
 -- save current-level unconsumed to `Context`
 focusing :: Traversal' s Text -> Ptraversal Text a -> Ptraversal s a
 focusing focus inside afb s@(_, ctx@(Context unconsumed above lvl)) =
-  let outside_afbsft = _1 . focus . textAtLevel (lvl+1) (unconsumed:above) . inside
+  let outside_afbsft = _1 . focus . textAtLevel (lvl+1) (V.snoc above unconsumed) . inside
   in outside_afbsft afb s
 
-textAtLevel :: Int -> [Text] -> Iso' Text (Text, Context)
+textAtLevel :: Int -> Vector Text -> Iso' Text (Text, Context)
 textAtLevel lvl unconsumeds = iso (\txt -> (txt, Context "" unconsumeds lvl)) (\(txt, Context rest _ _) -> txt <> rest)
 
 text :: Iso' Text (Text, Context)
-text = textAtLevel 0 []
+text = textAtLevel 0 V.empty
 
 many' :: Ptraversal Text a -> Ptraversal Text a
 many' p = failing (some' p) ignored
@@ -68,7 +69,7 @@ andThen rightMustSucceed afbsft afbsft' afb'' s@(_, Context _ above lvl) =
   let Pair constt ft = afbsft aConstfb s
   in case getConst constt of
        Last (Just (unconsumed_bottom, above_bottom)) ->
-         let unconsumed = fromMaybe unconsumed_bottom $ preview (element (Prelude.length above_bottom - lvl - 1)) above_bottom
+         let unconsumed = fromMaybe unconsumed_bottom (above_bottom !? lvl)
              Pair constt' ft' = afbsft' aConstfb' (unconsumed, Context "" above lvl)
          in case getConst constt' of
            Any True ->
