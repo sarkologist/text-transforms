@@ -96,13 +96,17 @@ spec_markdown_lazy = do
          "# ~~*_* s ~~ h\n unconsumed"
 
      it "focusing inside ||> inside focusing" $ do
-       flip set "_" (text . (h 1 . focusing content ((strikethrough . focusing unStrikethrough i) ||> i)) . _1 . _Left . unItalic )
-         "# ~~*i* s ~~*i2* h\n unconsumed" `shouldBe`
-         "# ~~*_* s ~~*i2* h\n unconsumed"
+       flip set "_" (text . ((h 1 . focusing content ((strikethrough . focusing unStrikethrough i) ||> i)) ||> i) . _1._Left._Left.unItalic)
+         "# ~~*i* s ~~*i2* h\n*i3*" `shouldBe`
+         "# ~~*_* s ~~*i2* h\n*i3*"
 
-       flip set "_" (text . (h 1 . focusing content ((strikethrough . focusing unStrikethrough i) ||> i)) . _1 . _Right . unItalic )
-         "# ~~*i* s ~~*i2* h\n unconsumed" `shouldBe`
-         "# ~~*i* s ~~*_* h\n unconsumed"
+       flip set "_" (text . ((h 1 . focusing content ((strikethrough . focusing unStrikethrough i) ||> i)) ||> i) . _1._Left._Right.unItalic)
+         "# ~~*i* s ~~*i2* h\n*i3*" `shouldBe`
+         "# ~~*i* s ~~*_* h\n*i3*"
+
+       flip set "_" (text . ((h 1 . focusing content ((strikethrough . focusing unStrikethrough i) ||> i)) ||> i) . _1._Right.unItalic)
+         "# ~~*i* s ~~*i2* h\n*i3*" `shouldBe`
+         "# ~~*i* s ~~*i2* h\n*_*"
 
      it "||> inside focusing" $ do
        flip set "_" (text . (h 1 . focusing content (i ||> i)) . _1 . _Right . unItalic)
