@@ -16,6 +16,7 @@ import Control.Lens.TH
 
 newtype Italic = Italic { _unItalic :: Text } deriving Show
 newtype Strikethrough = Strikethrough { _unStrikethrough :: Text } deriving Show
+data Bullet = Bullet Int Text deriving Show
 data Header = Header {
   _level :: Int,
   _content :: Text
@@ -40,6 +41,16 @@ h n = prism' build match
     build (Header k txt, ctx) = (pack (hashes k) <> " " <> txt <> "\n" , ctx)
 
     hashes k = Prelude.take k (Prelude.repeat '#')
+
+bullet :: Pprism Text Bullet
+bullet = prism' build match
+  where
+    match = parseInContext $ Bullet <$> (spaces <* string "- ") <*> (pack <$> many1 (noneOf "\n"))
+
+    build (Bullet level txt, ctx) = (T.replicate level "  " <> "-" <> txt <> "\n", ctx)
+
+    spaces :: Parser Int
+    spaces =  Prelude.length <$> many (string "  ")
 
 headers :: Ptraversal Text Header
 headers = choice' [
