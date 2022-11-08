@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DeriveFunctor #-}
 
 module MarkdownLazy where
 
@@ -11,8 +12,11 @@ import LazyParseTransforms
 
 import Data.Text as T
 import Text.Parsec hiding (choice)
-import Control.Lens (prism')
+import Control.Lens hiding (Context, noneOf)
 import Control.Lens.TH
+import Data.Fix
+import Text.Show.Deriving
+import Data.Functor.Classes
 
 newtype Italic = Italic { _unItalic :: Text } deriving Show
 newtype Strikethrough = Strikethrough { _unStrikethrough :: Text } deriving Show
@@ -42,12 +46,26 @@ h n = prism' build match
 
     hashes k = Prelude.take k (Prelude.repeat '#')
 
-bullet :: Pprism Text Bullet
+data Cases a =
+    B Int a
+  | Plain Text
+  deriving (Show, Functor)
+$(deriveShow1 ''Cases)
+
+type Markdown = Fix Cases
+
+buildMarkdown :: Cases Text -> Text
+buildMarkdown (Plain txt) = txt
+buildMarkdown (B lvl txt) = T.replicate lvl "  " <> "- " <> txt <> "\n"
+
+bullet :: Pprism Text Markdown
 bullet = prism' build match
   where
-    match = parseInContext $ Bullet <$> (spaces <* string "- ") <*> (pack <$> many1 (noneOf "\n"))
+    match = parseInContext $ Fix <$> ((B <$> depth) <*> (Fix . Plain <$> content))
+    depth = spaces <* string "- "
+    content = pack <$> many1 (noneOf "\n") <* char '\n'
 
-    build (Bullet level txt, ctx) = (T.replicate level "  " <> "-" <> txt <> "\n", ctx)
+    build (md, ctx) = (foldFix buildMarkdown md, ctx)
 
     spaces :: Parser Int
     spaces =  Prelude.length <$> many (string "  ")
@@ -70,9 +88,13 @@ skip toSkip = prism' id match
 allTheHeaders :: Ptraversal Text (Either Header Text)
 allTheHeaders = many' (headers <||> skip "#")
 
+_Fix :: Iso' (Fix f) (f (Fix f))
+_Fix = iso unFix Fix
+
 makeLenses ''Italic
 makeLenses ''Header
 makeLenses ''Strikethrough
 makePrisms ''Header
 makePrisms ''Italic
+makePrisms ''Cases
 makePrisms ''Strikethrough

@@ -7,6 +7,7 @@ import Test.Tasty.Hspec
 import MarkdownLazy
 import LazyParseTransforms
 import Control.Lens
+import Data.Fix
 
 spec_markdown_lazy :: Spec
 spec_markdown_lazy = do
@@ -143,3 +144,9 @@ spec_markdown_lazy = do
        flip set "_" (text . many' (i <||> h 1) . _1 . _Right . content)
          "*i*# h1\n" `shouldBe`
          "*i*# _\n"
+
+   describe "can unnest types of parsed with Fix" $ do
+     it "unindenting level zero bullet makes it not bullet" $ do
+       flip over (\(Fix (B lvl content@(Fix (Plain txt)))) -> if lvl > 0 then Fix (B (lvl-1) content) else Fix (Plain (txt <> "\n"))) (text . many' bullet . _1)
+         "- b 1\n  - b 2\n" `shouldBe`
+         "b 1\n- b 2\n"
