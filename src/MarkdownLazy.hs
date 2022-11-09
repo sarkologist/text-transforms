@@ -17,6 +17,7 @@ import Control.Lens.TH
 import Data.Fix
 import Text.Show.Deriving
 import Data.Functor.Classes
+import Control.Monad.State as S
 
 newtype Italic = Italic { _unItalic :: Text } deriving Show
 newtype Strikethrough = Strikethrough { _unStrikethrough :: Text } deriving Show
@@ -48,15 +49,22 @@ h n = prism' build match
 
 data Cases a =
     B Int a
+  | H Int a
+  | HeaderTitleContent Int a a
   | Plain Text
   deriving (Show, Functor)
 $(deriveShow1 ''Cases)
+makePrisms ''Cases
 
 type Markdown = Fix Cases
 
-buildMarkdown :: Cases Text -> Text
-buildMarkdown (Plain txt) = txt
-buildMarkdown (B lvl txt) = T.replicate lvl "  " <> "- " <> txt <> "\n"
+buildCases :: Cases Text -> Text
+buildCases (Plain txt) = txt
+buildCases (B lvl txt) = T.replicate lvl "  " <> "- " <> txt <> "\n"
+buildCases (H lvl txt) = T.replicate lvl "#" <> " " <> txt <> "\n"
+buildCases (HeaderTitleContent lvl title content) = T.replicate lvl "#" <> " " <> title <> "\n" <> content
+
+buildMarkdown = foldFix buildCases
 
 bullet :: Pprism Text Markdown
 bullet = prism' build match
@@ -65,10 +73,41 @@ bullet = prism' build match
     depth = spaces <* string "- "
     content = pack <$> many1 (noneOf "\n") <* char '\n'
 
-    build (md, ctx) = (foldFix buildMarkdown md, ctx)
+    build (md, ctx) = (buildMarkdown md, ctx)
 
     spaces :: Parser Int
     spaces =  Prelude.length <$> many (string "  ")
+
+hMarkdown :: Pprism Text Markdown
+hMarkdown = prism' build match
+  where
+    match = parseInContext $ Fix <$> ((H <$> (numHashes <* char ' ')) <*> (Fix . Plain <$> content))
+    build (md, ctx) = (buildMarkdown md, ctx)
+
+    numHashes = Prelude.length <$> many1 (char '#')
+    content = pack <$> many1 (noneOf ['\n']) <* char '\n'
+
+htc :: Pprism Text Markdown
+htc = prism' build match
+  where
+    match = parseInContext $ Fix
+      <$> ((HeaderTitleContent <$> (numHashes <* char ' '))
+      <*> (Fix . Plain <$> title)
+      <*> (Fix . Plain <$> content))
+    build (md, ctx) = (buildMarkdown md, ctx)
+
+    numHashes = Prelude.length <$> many1 (char '#')
+    title = pack <$> many1 (noneOf ['\n']) <* char '\n'
+    content = (pack.) . (<>) <$> manyTill anyChar (() <$ try (lookAhead (string "\n#")) <|> eof) <*> (string "\n" <|> "" <$ eof)
+
+unindentBulletIntoSubheader :: Text -> Text
+unindentBulletIntoSubheader = execState $
+  zoom (text . many' htc . _1 . _Fix. _HeaderTitleContent) $ do
+    (headerLevel, _, _) <- get
+    zoom (_3 . _Fix . _Plain) $ do
+       let f (Fix (B lvl content)) = Fix (if lvl==0 then (H (headerLevel+1) content) else B (lvl-1) content)
+       modify $ over (text . many' bullet . _1) f
+
 
 headers :: Ptraversal Text Header
 headers = choice' [
@@ -96,5 +135,4 @@ makeLenses ''Header
 makeLenses ''Strikethrough
 makePrisms ''Header
 makePrisms ''Italic
-makePrisms ''Cases
 makePrisms ''Strikethrough
