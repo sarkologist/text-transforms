@@ -48,7 +48,7 @@ h n = prism' build match
     hashes k = Prelude.take k (Prelude.repeat '#')
 
 data Cases a =
-    B Int a
+    B Text Int a
   | H Int a
   | HeaderTitleContent Int a a
   | Plain Text
@@ -60,7 +60,7 @@ type Markdown = Fix Cases
 
 buildCases :: Cases Text -> Text
 buildCases (Plain txt) = txt
-buildCases (B lvl txt) = T.replicate lvl "  " <> "- " <> txt <> "\n"
+buildCases (B style lvl txt) = T.replicate lvl style <> "- " <> txt <> "\n"
 buildCases (H lvl txt) = T.replicate lvl "#" <> " " <> txt <> "\n"
 buildCases (HeaderTitleContent lvl title content) = T.replicate lvl "#" <> " " <> title <> "\n" <> content
 
@@ -69,14 +69,19 @@ buildMarkdown = foldFix buildCases
 bullet :: Pprism Text Markdown
 bullet = prism' build match
   where
-    match = parseInContext $ Fix <$> ((B <$> depth) <*> (Fix . Plain <$> content))
-    depth = spaces <* string "- "
-    content = pack <$> many1 (noneOf "\n") <* char '\n'
+    match = parseInContext $ Fix <$> ((uncurry B <$> indentation) <*> (Fix . Plain <$> content))
 
     build (md, ctx) = (buildMarkdown md, ctx)
 
-    spaces :: Parser Int
-    spaces =  Prelude.length <$> many (string "  ")
+    content = pack <$> many1 (noneOf "\n") <* char '\n'
+
+    indentation :: Parser (Text, Int)
+    indentation = (styleLengthOf "  " <|> styleLengthOf "\t" <|> noIndent) <* string "- "
+
+    styleLengthOf :: String -> Parser (Text, Int)
+    styleLengthOf x = (\len -> (pack x, len)) . Prelude.length <$> many1 (string x)
+
+    noIndent = ("", 0) <$ string ""
 
 hMarkdown :: Pprism Text Markdown
 hMarkdown = prism' build match
@@ -100,12 +105,12 @@ htc = prism' build match
     title = pack <$> many1 (noneOf ['\n']) <* char '\n'
     content = (pack.) . (<>) <$> manyTill anyChar (() <$ try (lookAhead (string "\n#")) <|> eof) <*> (string "\n" <|> "" <$ eof)
 
-unindentBulletIntoSubheader :: Text -> Text
-unindentBulletIntoSubheader = execState $
+unindentBulletIntoSubheader :: Text -> Text -> Text
+unindentBulletIntoSubheader style = execState $
   zoom (text . many' htc . _1 . _Fix. _HeaderTitleContent) $ do
     (headerLevel, _, _) <- get
     zoom (_3 . _Fix . _Plain) $ do
-       let f (Fix (B lvl content)) = Fix (if lvl==0 then (H (headerLevel+1) content) else B (lvl-1) content)
+       let f (Fix (B _ lvl content)) = Fix (if lvl==0 then (H (headerLevel+1) content) else B style (lvl-1) content)
        modify $ over (text . many' bullet . _1) f
 
 

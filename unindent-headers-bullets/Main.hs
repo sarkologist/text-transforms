@@ -15,4 +15,4 @@ import Turtle as T (stdin, lineToText, inproc, die, empty, fold)
 getText = T.fold stdin (F.foldMap (\l -> lineToText l <> "\n") id)
 
 main :: IO ()
-main = TIO.putStr . unindentBulletIntoSubheader =<< getText
+main = TIO.putStr . unindentBulletIntoSubheader "\t" =<< getText
