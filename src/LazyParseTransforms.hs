@@ -97,6 +97,12 @@ onlyIfRight a ctx (Left _, _) = (a, ctx)
 onlyIfLeft _ _ (Left b, ctx') = (b, ctx')
 onlyIfLeft a ctx (Right _, _) = (a, ctx)
 
+pprism :: Parser a -> (a -> Text) -> Pprism Text a
+pprism parse render = prism' build match
+  where
+    match = parseInContext parse
+    build (a, ctx) = (render a, ctx)
+
 parseInContext :: Parser a -> (Text, Context) -> Maybe (a, Context)
 parseInContext p (input, (Context after above lvl)) = eitherToMaybe $
   parse (contextualise <$> p <*> getInput) "" input
