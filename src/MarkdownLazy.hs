@@ -11,8 +11,9 @@ import LazyParseTransforms
 
 import Data.Text as T
 import Text.Parsec hiding (choice)
-import Control.Lens (prism')
+import Control.Lens hiding (Context, noneOf)
 import Control.Lens.TH
+import Control.Monad.State as S
 
 newtype Italic = Italic { _unItalic :: Text } deriving Show
 newtype Strikethrough = Strikethrough { _unStrikethrough :: Text } deriving Show
@@ -40,6 +41,57 @@ h n = prism' build match
     build (Header k txt, ctx) = (pack (hashes k) <> " " <> txt <> "\n" , ctx)
 
     hashes k = Prelude.take k (Prelude.repeat '#')
+
+data Cases =
+    Bullet Text Int Text
+  | HeaderTitleContent Int Text Text
+  | Plain Text
+  deriving (Show)
+makePrisms ''Cases
+
+buildCases :: Cases -> Text
+buildCases (Plain txt) = txt
+buildCases (Bullet style lvl txt) = T.replicate lvl style <> "- " <> txt <> "\n"
+buildCases (HeaderTitleContent lvl title content) = T.replicate lvl "#" <> " " <> title <> "\n" <> content
+
+bullet :: Pprism Text Cases
+bullet = prism' build match
+  where
+    match = parseInContext $ uncurry Bullet <$> indentation <*> content
+
+    build (md, ctx) = (buildCases md, ctx)
+
+    content = pack <$> many1 (noneOf "\n") <* char '\n'
+
+    indentation :: Parser (Text, Int)
+    indentation = (styleLengthOf "  " <|> styleLengthOf "\t" <|> noIndent) <* string "- "
+
+    styleLengthOf :: String -> Parser (Text, Int)
+    styleLengthOf x = (\len -> (pack x, len)) . Prelude.length <$> many1 (string x)
+
+    noIndent = ("", 0) <$ string ""
+
+htc :: Pprism Text Cases
+htc = prism' build match
+  where
+    match = parseInContext $
+          (HeaderTitleContent <$> (numHashes <* char ' '))
+      <*> title
+      <*> content
+    build (md, ctx) = (buildCases md, ctx)
+
+    numHashes = Prelude.length <$> many1 (char '#')
+    title = pack <$> many1 (noneOf ['\n']) <* char '\n'
+    content = (pack.) . (<>) <$> manyTill anyChar (() <$ try (lookAhead (string "\n#")) <|> eof) <*> (string "\n" <|> "" <$ eof)
+
+unindentBulletIntoSubheader :: Text -> Text -> Text
+unindentBulletIntoSubheader style = execState $
+  zoom (text . many' htc . _1 . _HeaderTitleContent) $ do
+    (headerLevel, _, _) <- get
+    zoom (_3 . text . many' bullet . _1) $ do
+       let f (Bullet _ lvl content) = (if lvl==0 then (HeaderTitleContent (headerLevel+1) content "") else Bullet style (lvl-1) content)
+       modify f
+
 
 headers :: Ptraversal Text Header
 headers = choice' [

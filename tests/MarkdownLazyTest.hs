@@ -143,3 +143,9 @@ spec_markdown_lazy = do
        flip set "_" (text . many' (i <||> h 1) . _1 . _Right . content)
          "*i*# h1\n" `shouldBe`
          "*i*# _\n"
+
+   describe "can unnest types of parsed with sum types" $ do
+     it "unindenting level zero bullet makes it not bullet" $ do
+       flip over (\(Bullet style lvl content@txt) -> if lvl > 0 then (Bullet style (lvl-1) content) else Plain (txt <> "\n")) (text . many' bullet . _1)
+         "- b 1\n  - b 2\n" `shouldBe`
+         "b 1\n- b 2\n"
