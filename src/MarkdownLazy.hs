@@ -109,9 +109,9 @@ unindentBulletIntoSubheader :: Text -> Text -> Text
 unindentBulletIntoSubheader style = execState $
   zoom (text . many' htc . _1 . _Fix. _HeaderTitleContent) $ do
     (headerLevel, _, _) <- get
-    zoom (_3 . _Fix . _Plain) $ do
+    zoom (_3 . _Fix . _Plain . text . many' bullet . _1) $ do
        let f (Fix (B _ lvl content)) = Fix (if lvl==0 then (H (headerLevel+1) content) else B style (lvl-1) content)
-       modify $ over (text . many' bullet . _1) f
+       modify f
 
 
 headers :: Ptraversal Text Header
