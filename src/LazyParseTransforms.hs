@@ -70,25 +70,35 @@ choice' [] = ignored
 -- third crux is after left context has been rebuilt,
 --   we need to trim it because unconsumed should now be to the after right, not left
 andThen :: Bool -> Ptraversal a x -> Ptraversal Text y -> Ptraversal a (Either x y)
-andThen rightMustSucceed afbsft afbsft' afb'' s@(_, Context _ above lvl) =
+andThen rightMustSucceed afbsft afbsft' afb'' s@(_, Context _ above lvl_s) =
   let Pair constt ft = afbsft aConstfb s
   in case getConst constt of
-       Last (Just (unconsumed_bottom, above_bottom)) ->
-         let unconsumed = fromMaybe unconsumed_bottom (above_bottom !? lvl)
-             Pair constt' ft' = afbsft' aConstfb' (unconsumed, Context "" above lvl)
+       Last (Just (unconsumed, isFocused)) ->
+         let Pair constt' ft' = afbsft' aConstfb' (unconsumed, Context "" above lvl_s)
          in case getConst constt' of
            Any True ->
-             let merge (a, Context rebuilt _ _) (txt, Context ctx _ _) =
-                   (a, Context (actuallyConsumed rebuilt <> txt <> ctx) above lvl)
-                 actuallyConsumed rebuilt | rebuilt == "" = unconsumed
-                 actuallyConsumed rebuilt | otherwise =
-                   fromMaybe (error . unpack $ "unconsumed was consumed: \"" <> unconsumed <> "\" / \"" <> rebuilt <> "\"") $
-                     (stripSuffix unconsumed rebuilt)
+             let merge (a, Context ctx _ _) (txt, Context ctx' _ _) =
+                   -- if focused, then 'a' is in fact 'Text' and will be rebuilt entirely, so discard 'ctx'
+                   -- if not focused, we have already discarded unconsumed, so just use rebuilt 'ctx'
+                   let rebuilt = if isFocused then "" else ctx
+                   in (a, Context (rebuilt <> txt <> ctx') above lvl_s)
              in merge <$> ft <*> ft'
-           Any False -> if rightMustSucceed then pure s else ft
+           Any False -> if rightMustSucceed
+                        then pure s
+                        else let replaceUnconsumed (t, Context rebuilt abv l) =
+                                   (t, Context (rebuilt <> unconsumed) abv l)
+                             in replaceUnconsumed <$> ft
        Last Nothing -> pure s
 
-  where aConstfb  (a,ctx@(Context unconsumed above _)) = onlyIfLeft a ctx <$> Pair (Const (Last (Just (unconsumed, above)))) (afb'' (Left a, ctx))
+  where aConstfb  (a,ctx@(Context unconsumed abv lvl)) =
+          let isFocused = lvl > 0
+              -- discard 'unconsumed' if focused, since it is now the responsibility of afbsft'
+              -- otherwise 'unconsumed' is local to afbst, so will be rebuilt into ancestors
+              ctx' = Context (if isFocused then unconsumed else "") abv lvl
+              unconsumed_top = fromMaybe unconsumed (abv !? lvl_s)
+          in onlyIfLeft a ctx' <$> Pair
+              (Const (Last (Just (unconsumed_top, isFocused))))
+              (afb'' (Left a, ctx'))
         aConstfb' (a,ctx) = onlyIfRight a ctx <$> Pair (Const (Any True)) (afb'' (Right a, ctx))
 
 onlyIfRight _ _ (Right b, ctx') = (b, ctx')
