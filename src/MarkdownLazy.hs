@@ -2,7 +2,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE DeriveFunctor #-}
 
 module MarkdownLazy where
 
@@ -14,14 +13,10 @@ import Data.Text as T
 import Text.Parsec hiding (choice)
 import Control.Lens hiding (Context, noneOf)
 import Control.Lens.TH
-import Data.Fix
-import Text.Show.Deriving
-import Data.Functor.Classes
 import Control.Monad.State as S
 
 newtype Italic = Italic { _unItalic :: Text } deriving Show
 newtype Strikethrough = Strikethrough { _unStrikethrough :: Text } deriving Show
-data Bullet = Bullet Int Text deriving Show
 data Header = Header {
   _level :: Int,
   _content :: Text
@@ -47,31 +42,24 @@ h n = prism' build match
 
     hashes k = Prelude.take k (Prelude.repeat '#')
 
-data Cases a =
-    B Text Int a
-  | H Int a
-  | HeaderTitleContent Int a a
+data Cases =
+    Bullet Text Int Text
+  | HeaderTitleContent Int Text Text
   | Plain Text
-  deriving (Show, Functor)
-$(deriveShow1 ''Cases)
+  deriving (Show)
 makePrisms ''Cases
 
-type Markdown = Fix Cases
-
-buildCases :: Cases Text -> Text
+buildCases :: Cases -> Text
 buildCases (Plain txt) = txt
-buildCases (B style lvl txt) = T.replicate lvl style <> "- " <> txt <> "\n"
-buildCases (H lvl txt) = T.replicate lvl "#" <> " " <> txt <> "\n"
+buildCases (Bullet style lvl txt) = T.replicate lvl style <> "- " <> txt <> "\n"
 buildCases (HeaderTitleContent lvl title content) = T.replicate lvl "#" <> " " <> title <> "\n" <> content
 
-buildMarkdown = foldFix buildCases
-
-bullet :: Pprism Text Markdown
+bullet :: Pprism Text Cases
 bullet = prism' build match
   where
-    match = parseInContext $ Fix <$> ((uncurry B <$> indentation) <*> (Fix . Plain <$> content))
+    match = parseInContext $ uncurry Bullet <$> indentation <*> content
 
-    build (md, ctx) = (buildMarkdown md, ctx)
+    build (md, ctx) = (buildCases md, ctx)
 
     content = pack <$> many1 (noneOf "\n") <* char '\n'
 
@@ -83,23 +71,14 @@ bullet = prism' build match
 
     noIndent = ("", 0) <$ string ""
 
-hMarkdown :: Pprism Text Markdown
-hMarkdown = prism' build match
-  where
-    match = parseInContext $ Fix <$> ((H <$> (numHashes <* char ' ')) <*> (Fix . Plain <$> content))
-    build (md, ctx) = (buildMarkdown md, ctx)
-
-    numHashes = Prelude.length <$> many1 (char '#')
-    content = pack <$> many1 (noneOf ['\n']) <* char '\n'
-
-htc :: Pprism Text Markdown
+htc :: Pprism Text Cases
 htc = prism' build match
   where
-    match = parseInContext $ Fix
-      <$> ((HeaderTitleContent <$> (numHashes <* char ' '))
-      <*> (Fix . Plain <$> title)
-      <*> (Fix . Plain <$> content))
-    build (md, ctx) = (buildMarkdown md, ctx)
+    match = parseInContext $
+          (HeaderTitleContent <$> (numHashes <* char ' '))
+      <*> title
+      <*> content
+    build (md, ctx) = (buildCases md, ctx)
 
     numHashes = Prelude.length <$> many1 (char '#')
     title = pack <$> many1 (noneOf ['\n']) <* char '\n'
@@ -107,10 +86,10 @@ htc = prism' build match
 
 unindentBulletIntoSubheader :: Text -> Text -> Text
 unindentBulletIntoSubheader style = execState $
-  zoom (text . many' htc . _1 . _Fix. _HeaderTitleContent) $ do
+  zoom (text . many' htc . _1 . _HeaderTitleContent) $ do
     (headerLevel, _, _) <- get
-    zoom (_3 . _Fix . _Plain . text . many' bullet . _1) $ do
-       let f (Fix (B _ lvl content)) = Fix (if lvl==0 then (H (headerLevel+1) content) else B style (lvl-1) content)
+    zoom (_3 . text . many' bullet . _1) $ do
+       let f (Bullet _ lvl content) = (if lvl==0 then (HeaderTitleContent (headerLevel+1) content "") else Bullet style (lvl-1) content)
        modify f
 
 
@@ -131,9 +110,6 @@ skip toSkip = prism' id match
 
 allTheHeaders :: Ptraversal Text (Either Header Text)
 allTheHeaders = many' (headers <||> skip "#")
-
-_Fix :: Iso' (Fix f) (f (Fix f))
-_Fix = iso unFix Fix
 
 makeLenses ''Italic
 makeLenses ''Header
