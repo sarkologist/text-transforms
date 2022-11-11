@@ -92,8 +92,8 @@ andThen rightMustSucceed afbsft afbsft' afb'' s@(_, Context _ above lvl_s) =
 
   where aConstfb  (a,ctx@(Context unconsumed abv lvl)) =
           let isFocused = lvl > 0
-              -- discard 'unconsumed' if focused, since it is now the responsibility of afbsft'
-              -- otherwise 'unconsumed' is local to afbst, so will be rebuilt into ancestors
+              -- if not focused, discard 'unconsumed', since it is now the responsibility of afbsft'
+              -- if focused, 'unconsumed' is local to afbst, so will be rebuilt into ancestors
               ctx' = Context (if isFocused then unconsumed else "") abv lvl
               unconsumed_top = fromMaybe unconsumed (abv !? lvl_s)
           in onlyIfLeft a ctx' <$> Pair
