@@ -31,7 +31,6 @@ dependencies:
 - parsec
 - foldl
 - vector
-- deriving-compat
 
 library:
   source-dirs: src
