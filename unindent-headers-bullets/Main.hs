@@ -8,7 +8,6 @@ import Control.Lens
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import qualified Control.Foldl as F
-import Data.Fix
 
 import Turtle as T (stdin, lineToText, inproc, die, empty, fold)
 

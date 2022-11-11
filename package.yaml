@@ -31,7 +31,6 @@ dependencies:
 - parsec
 - foldl
 - vector
-- data-fix
 - deriving-compat
 
 library:
