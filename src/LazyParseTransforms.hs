@@ -19,37 +19,46 @@ type Parser a = Parsec Text () a
 -- which we need to preserve for ||> to know what is unconsumed at the level it is applied
 data Context = Context Text (Vector Text) Int deriving Show
 type P p f a b = Optic' p f (a, Context) (b, Context)
-type Pprism a b = forall p f. (Choice p, Applicative f) => P p f a b
-type Ptraversal a b = forall f. (Applicative f) => P (->) f a b
+type PPrism a b = forall p f. (Choice p, Applicative f) => P p f a b
+type PTraversal a b = forall f. (Applicative f) => P (->) f a b
 
 -- "vertical" top-down composition:
--- prepare new Context for text at `focus`
--- save current-level unconsumed to `Context`
-focusing :: Traversal' s Text -> Ptraversal Text a -> Ptraversal s a
+focusing :: Traversal' s Text -> PTraversal Text a -> PTraversal s a
 focusing focus inside afb s@(_, ctx@(Context unconsumed above lvl)) =
-  let outside_afbsft = _1 . focus . textAtLevel (lvl+1) (V.snoc above unconsumed) . inside
+  let outside_afbsft = _1
+         . focus
+         . textAtLevel -- prepare new Context for text at `focus`
+            (lvl+1) -- keep track of the number of times we focus
+            (V.snoc above unconsumed) -- save current-level unconsumed to `Context`
+         . inside
   in outside_afbsft afb s
 
+-- prepare fresh `Context`
 textAtLevel :: Int -> Vector Text -> Iso' Text (Text, Context)
-textAtLevel lvl unconsumeds = iso (\txt -> (txt, Context "" unconsumeds lvl)) (\(txt, Context rest _ _) -> txt <> rest)
+textAtLevel lvl unconsumeds = iso
+  (\txt -> (txt, Context "" unconsumeds lvl))
+  (\(txt, Context rest _ _) -> txt <> rest)
 
+-- prepare fresh `Context` at top-level
 text :: Iso' Text (Text, Context)
 text = textAtLevel 0 V.empty
 
-many' :: Ptraversal Text a -> Ptraversal Text a
+many' :: PTraversal Text a -> PTraversal Text a
 many' p = failing (some' p) ignored
   where
-    some' :: Ptraversal Text a -> Ptraversal Text a
+    some' :: PTraversal Text a -> PTraversal Text a
     some' p = (p ||>? many' p) . alongside chosen id
 
-newtype ChoiceTraversal a b = ChoiceTraversal { unChoiceTraversal :: Ptraversal a b }
+-- workaround for impredicative polymorphism
+newtype ChoiceTraversal a b = ChoiceTraversal { unChoiceTraversal :: PTraversal a b }
 
-choice' :: [ChoiceTraversal a b] -> Ptraversal a b
+-- unlike `(<||>)` requires same type
+choice' :: [ChoiceTraversal a b] -> PTraversal a b
 choice' (ChoiceTraversal p:ps) = failing p (choice' ps)
 choice' [] = ignored
 
 -- unlike `ignored` supports different types
-(<||>) :: Ptraversal a x -> Ptraversal a y -> Ptraversal a (Either x y)
+(<||>) :: PTraversal a x -> PTraversal a y -> PTraversal a (Either x y)
 (<||>) afbst afbst' afb'' s =
   let Pair constt ft = afbst aConstfb s
   in case getConst constt of
@@ -58,7 +67,9 @@ choice' [] = ignored
   where aConstfb  (a,ctx) = onlyIfLeft a ctx <$> Pair (Const (Any True)) (afb'' (Left a, ctx))
         afb' (a,ctx) = onlyIfRight a ctx <$> afb'' (Right a, ctx)
 
-(||>), (||>?) :: Ptraversal a x -> Ptraversal Text y -> Ptraversal a (Either x y)
+-- "horizontal" left-to-right composition
+-- depending on whether right must succeed or not
+(||>), (||>?) :: PTraversal a x -> PTraversal Text y -> PTraversal a (Either x y)
 (||>) = andThen True
 (||>?) = andThen False
 
@@ -68,7 +79,7 @@ choice' [] = ignored
 -- second crux is left may be focused,
 --   in which case we need to retrieve its parent unconsumed
 -- third crux is removing from unconsumed of left, the part which was also unconsumed by right
-andThen :: Bool -> Ptraversal a x -> Ptraversal Text y -> Ptraversal a (Either x y)
+andThen :: Bool -> PTraversal a x -> PTraversal Text y -> PTraversal a (Either x y)
 andThen rightMustSucceed afbsft afbsft' afb'' s@(_, Context _ above lvl_s) =
   -- run left
   let Pair constt ft = afbsft aConstfb s
@@ -114,12 +125,14 @@ onlyIfRight a ctx (Left _, _) = (a, ctx)
 onlyIfLeft _ _ (Left b, ctx') = (b, ctx')
 onlyIfLeft a ctx (Right _, _) = (a, ctx)
 
-pprism :: Parser a -> (a -> Text) -> Pprism Text a
-pprism parse render = prism' build match
+-- lifts a `Parser a` and a builder `a -> Text` for it to a `PPrism Text a`
+pPrism :: Parser a -> (a -> Text) -> PPrism Text a
+pPrism parse render = prism' build match
   where
     match = parseInContext parse
     build (a, ctx) = (render a, ctx)
 
+-- lifts a `Parser a` to a matcher for a `PPrism Text a`
 parseInContext :: Parser a -> (Text, Context) -> Maybe (a, Context)
 parseInContext p (input, (Context after above lvl)) = eitherToMaybe $
   parse (contextualise <$> p <*> getInput) "" input

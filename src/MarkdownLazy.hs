@@ -22,20 +22,20 @@ data Header = Header {
   _content :: Text
 } deriving Show
 
-i :: Pprism Text Italic
-i = pprism parse render
+i :: PPrism Text Italic
+i = pPrism parse render
   where
     parse = Italic . pack <$> withinMany (char '*') (noneOf (['*']))
     render (Italic txt) = ("*" <> txt <> "*")
 
-strikethrough :: Pprism Text Strikethrough
-strikethrough = pprism parse render
+strikethrough :: PPrism Text Strikethrough
+strikethrough = pPrism parse render
   where
     parse = Strikethrough . pack <$> withinMany (string "~~") (noneOf (['~']))
     render (Strikethrough txt) = ("~~" <> txt <> "~~")
 
-h :: Int ->  Pprism Text Header
-h n = pprism parse render
+h :: Int ->  PPrism Text Header
+h n = pPrism parse render
   where
     parse = Header n . pack <$> between (string (hashes n) *> char ' ') endOfLine (many1 (noneOf ['\n']))
     render (Header k txt) = pack (hashes k) <> " " <> txt <> "\n"
@@ -54,8 +54,8 @@ buildCases (Plain txt) = txt
 buildCases (Bullet style lvl txt) = T.replicate lvl style <> "- " <> txt <> "\n"
 buildCases (HeaderTitleContent lvl title content) = T.replicate lvl "#" <> " " <> title <> "\n" <> content
 
-bullet :: Pprism Text Cases
-bullet = pprism parse render
+bullet :: PPrism Text Cases
+bullet = pPrism parse render
   where
     parse = uncurry Bullet <$> indentation <*> content
 
@@ -71,8 +71,8 @@ bullet = pprism parse render
 
     noIndent = ("", 0) <$ string ""
 
-htc :: Pprism Text Cases
-htc = pprism parse render
+htc :: PPrism Text Cases
+htc = pPrism parse render
   where
     parse = (HeaderTitleContent <$> (numHashes <* char ' '))
       <*> title
@@ -92,7 +92,7 @@ unindentBulletIntoSubheader style = execState $
        modify f
 
 
-headers :: Ptraversal Text Header
+headers :: PTraversal Text Header
 headers = choice' [
     ChoiceTraversal (h 1)
   , ChoiceTraversal (h 2)
@@ -102,12 +102,12 @@ headers = choice' [
   , ChoiceTraversal (h 6)
   ]
 
-skip :: [Char] -> Pprism Text Text
-skip toSkip = pprism parse id
+skip :: [Char] -> PPrism Text Text
+skip toSkip = pPrism parse id
   where
     parse = pack <$> many1 (noneOf toSkip)
 
-allTheHeaders :: Ptraversal Text (Either Header Text)
+allTheHeaders :: PTraversal Text (Either Header Text)
 allTheHeaders = many' (headers <||> skip "#")
 
 makeLenses ''Italic
