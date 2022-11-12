@@ -70,12 +70,15 @@ choice' [] = ignored
 -- third crux is removing from unconsumed of left, the part which was also unconsumed by right
 andThen :: Bool -> Ptraversal a x -> Ptraversal Text y -> Ptraversal a (Either x y)
 andThen rightMustSucceed afbsft afbsft' afb'' s@(_, Context _ above lvl_s) =
+  -- run left
   let Pair constt ft = afbsft aConstfb s
   in case getConst constt of
        Last (Just (unconsumed, isFocused)) ->
+         -- run right, on unconsumed from left
          let Pair constt' ft' = afbsft' aConstfb' (unconsumed, Context "" above lvl_s)
          in case getConst constt' of
            Any True ->
+             -- merge results of both left/right
              let merge (a, Context ctx _ _) (txt, Context ctx' _ _) =
                    -- if focused, then everything consumed will be rebuilt into 'a',
                    --   so discard 'ctx' which consists entirely of unconsumed
