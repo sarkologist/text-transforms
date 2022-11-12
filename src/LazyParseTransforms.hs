@@ -67,8 +67,7 @@ choice' [] = ignored
 -- first crux is passing on remaining unconsumed after left has succeeded
 -- second crux is left may be focused,
 --   in which case we need to retrieve its parent unconsumed
--- third crux is after left context has been rebuilt,
---   we need to trim it because unconsumed should now be to the after right, not left
+-- third crux is removing from unconsumed of left, the part which was also unconsumed by right
 andThen :: Bool -> Ptraversal a x -> Ptraversal Text y -> Ptraversal a (Either x y)
 andThen rightMustSucceed afbsft afbsft' afb'' s@(_, Context _ above lvl_s) =
   let Pair constt ft = afbsft aConstfb s
@@ -78,7 +77,8 @@ andThen rightMustSucceed afbsft afbsft' afb'' s@(_, Context _ above lvl_s) =
          in case getConst constt' of
            Any True ->
              let merge (a, Context ctx _ _) (txt, Context ctx' _ _) =
-                   -- if focused, then 'a' is in fact 'Text' and will be rebuilt entirely, so discard 'ctx'
+                   -- if focused, then everything consumed will be rebuilt into 'a',
+                   --   so discard 'ctx' which consists entirely of unconsumed
                    -- if not focused, we have already discarded unconsumed, so just use rebuilt 'ctx'
                    let rebuilt = if isFocused then "" else ctx
                    in (a, Context (rebuilt <> txt <> ctx') above lvl_s)
@@ -92,8 +92,12 @@ andThen rightMustSucceed afbsft afbsft' afb'' s@(_, Context _ above lvl_s) =
 
   where aConstfb  (a,ctx@(Context unconsumed abv lvl)) =
           let isFocused = lvl > 0
-              -- if not focused, discard 'unconsumed', since it is now the responsibility of afbsft'
-              -- if focused, 'unconsumed' is local to afbst, so will be rebuilt into ancestors
+              -- if not focused, discard the parent top-level 'unconsumed',
+              --  since it is now the responsibility of afbsft'
+              --  we do it here since doing it at parent will propagate child unconsumed to it
+              --  and we would have to separate out child/parent unconsumed
+              -- if focused, 'unconsumed' is bottom-level and local to afbst,
+              --  so will be rebuilt into parent of focus
               ctx' = Context (if isFocused then unconsumed else "") abv lvl
               unconsumed_top = fromMaybe unconsumed (abv !? lvl_s)
           in onlyIfLeft a ctx' <$> Pair
