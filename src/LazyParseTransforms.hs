@@ -57,7 +57,7 @@ choice' :: [ChoiceTraversal a b] -> PTraversal a b
 choice' (ChoiceTraversal p:ps) = failing p (choice' ps)
 choice' [] = ignored
 
--- unlike `ignored` supports different types
+-- unlike `failing` supports different types
 (<||>) :: PTraversal a x -> PTraversal a y -> PTraversal a (Either x y)
 (<||>) afbst afbst' afb'' s =
   let Pair constt ft = afbst aConstfb s
@@ -117,6 +117,7 @@ andThen rightMustSucceed afbsft afbsft' afb'' s@(_, Context _ above lvl_s) =
           in onlyIfLeft a ctx' <$> Pair
               (Const (Last (Just (unconsumed_top, isFocused))))
               (afb'' (Left a, ctx'))
+
         aConstfb' (a,ctx) = onlyIfRight a ctx <$> Pair (Const (Any True)) (afb'' (Right a, ctx))
 
 onlyIfRight _ _ (Right b, ctx') = (b, ctx')
