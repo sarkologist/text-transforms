@@ -23,14 +23,14 @@ type PPrism a b = forall p f. (Choice p, Applicative f) => P p f a b
 type PTraversal a b = forall f. (Applicative f) => P (->) f a b
 
 -- "vertical" top-down composition:
-focusing :: Traversal' s Text -> PTraversal s Text
-focusing focus afb s@(_, ctx@(Context unconsumed above lvl)) =
-  let outside_afbsft = _1
-         . focus
+focus :: Traversal' s Text -> PTraversal s Text
+focus at afb s@(_, ctx@(Context unconsumed above lvl)) =
+  let afbsft = _1
+         . at
          . textAtLevel -- prepare new Context for text at `focus`
             (lvl+1) -- keep track of the number of times we focus
             (V.snoc above unconsumed) -- save current-level unconsumed to `Context`
-  in outside_afbsft afb s
+  in afbsft afb s
 
 -- prepare fresh `Context`
 textAtLevel :: Int -> Vector Text -> Iso' Text (Text, Context)
