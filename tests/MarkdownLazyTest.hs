@@ -77,49 +77,49 @@ spec_markdown_lazy = do
 
    describe "focusing" $ do
      it "focusing" $ do
-       flip set "_" (text . h 1 . focusing content i . _1 . unItalic)
+       flip set "_" (text . h 1 . focusing content . i . _1 . unItalic)
          "# *i* not i\n not h" `shouldBe`
          "# *_* not i\n not h"
 
      it "focusing inside ||>" $ do
-       flip set "_" (text . ((h 1 . focusing content i) ||> i) . _1 . _Left . unItalic)
+       flip set "_" (text . ((h 1 . focusing content . i) ||> i) . _1 . _Left . unItalic)
          "# *i* not i\n*i*" `shouldBe`
          "# *_* not i\n*i*"
 
-       flip set "_" (text . ((h 1 . focusing content i) ||> i) . _1 . _Right . unItalic)
+       flip set "_" (text . ((h 1 . focusing content . i) ||> i) . _1 . _Right . unItalic)
          "# *i* not i\n*i*" `shouldBe`
          "# *i* not i\n*_*"
 
      it "focusing twice inside ||>" $ do
-       flip set "_" (text . ((h 1 . focusing content (strikethrough . focusing unStrikethrough i)) ||> skip "") . _1 . _Left . unItalic)
+       flip set "_" (text . ((h 1 . focusing content . strikethrough . focusing unStrikethrough . i) ||> skip "") . _1 . _Left . unItalic)
          "# ~~*i* s ~~ h\n unconsumed" `shouldBe`
          "# ~~*_* s ~~ h\n unconsumed"
 
      it "focusing inside ||> inside focusing" $ do
-       flip set "_" (text . ((h 1 . focusing content ((strikethrough . focusing unStrikethrough i) ||> i)) ||> i) . _1._Left._Left.unItalic)
+       flip set "_" (text . ((h 1 . focusing content . ((strikethrough . focusing unStrikethrough . i) ||> i)) ||> i) . _1._Left._Left.unItalic)
          "# ~~*i* s ~~*i2* h\n*i3*" `shouldBe`
          "# ~~*_* s ~~*i2* h\n*i3*"
 
-       flip set "_" (text . ((h 1 . focusing content ((strikethrough . focusing unStrikethrough i) ||> i)) ||> i) . _1._Left._Right.unItalic)
+       flip set "_" (text . ((h 1 . focusing content . ((strikethrough . focusing unStrikethrough . i) ||> i)) ||> i) . _1._Left._Right.unItalic)
          "# ~~*i* s ~~*i2* h\n*i3*" `shouldBe`
          "# ~~*i* s ~~*_* h\n*i3*"
 
-       flip set "_" (text . ((h 1 . focusing content ((strikethrough . focusing unStrikethrough i) ||> i)) ||> i) . _1._Right.unItalic)
+       flip set "_" (text . ((h 1 . focusing content . ((strikethrough . focusing unStrikethrough . i) ||> i)) ||> i) . _1._Right.unItalic)
          "# ~~*i* s ~~*i2* h\n*i3*" `shouldBe`
          "# ~~*i* s ~~*i2* h\n*_*"
 
      it "||> inside focusing" $ do
-       flip set "_" (text . (h 1 . focusing content (i ||> i)) . _1 . _Right . unItalic)
+       flip set "_" (text . (h 1 . focusing content . (i ||> i)) . _1 . _Right . unItalic)
          "# *i**i2* h\n*i3*" `shouldBe`
          "# *i**_* h\n*i3*"
 
      it "focusing after ||>" $ do
-       flip set "_" (text . (h 1 ||> i) . focusing (_Left . content) i . _1 . unItalic)
+       flip set "_" (text . (h 1 ||> i) . focusing (_Left . content) . i . _1 . unItalic)
          "# *i inside* not i\n*i outside*" `shouldBe`
          "# *_* not i\n*i outside*"
 
      it "focusing after many" $ do
-       flip set "_" (text . many' (h 1) . focusing content i . _1 . unItalic)
+       flip set "_" (text . many' (h 1) . focusing content . i . _1 . unItalic)
          "# *i* not i\n# *i2* not i2\n# no i\n *i* not i" `shouldBe`
          "# *_* not i\n# *_* not i2\n# no i\n *i* not i"
 
