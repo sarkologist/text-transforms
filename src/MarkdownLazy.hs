@@ -22,23 +22,23 @@ data Header = Header {
   _content :: Text
 } deriving Show
 
-i :: Pprism Text Italic
-i = prism' build match
+i :: PPrism Text Italic
+i = pPrism parse render
   where
-    match = parseInContext $ Italic . pack <$> withinMany (char '*') (noneOf (['*']))
-    build (Italic txt, ctx) = ("*" <> txt <> "*", ctx)
+    parse = Italic . pack <$> withinMany (char '*') (noneOf (['*']))
+    render (Italic txt) = ("*" <> txt <> "*")
 
-strikethrough :: Pprism Text Strikethrough
-strikethrough = prism' build match
+strikethrough :: PPrism Text Strikethrough
+strikethrough = pPrism parse render
   where
-    match = parseInContext $ Strikethrough . pack <$> withinMany (string "~~") (noneOf (['~']))
-    build (Strikethrough txt, ctx) = ("~~" <> txt <> "~~", ctx)
+    parse = Strikethrough . pack <$> withinMany (string "~~") (noneOf (['~']))
+    render (Strikethrough txt) = ("~~" <> txt <> "~~")
 
-h :: Int ->  Pprism Text Header
-h n = prism' build match
+h :: Int ->  PPrism Text Header
+h n = pPrism parse render
   where
-    match = parseInContext $ Header n . pack <$> between (string (hashes n) *> char ' ') endOfLine (many1 (noneOf ['\n']))
-    build (Header k txt, ctx) = (pack (hashes k) <> " " <> txt <> "\n" , ctx)
+    parse = Header n . pack <$> between (string (hashes n) *> char ' ') endOfLine (many1 (noneOf ['\n']))
+    render (Header k txt) = pack (hashes k) <> " " <> txt <> "\n"
 
     hashes k = Prelude.take k (Prelude.repeat '#')
 
@@ -54,12 +54,12 @@ buildCases (Plain txt) = txt
 buildCases (Bullet style lvl txt) = T.replicate lvl style <> "- " <> txt <> "\n"
 buildCases (HeaderTitleContent lvl title content) = T.replicate lvl "#" <> " " <> title <> "\n" <> content
 
-bullet :: Pprism Text Cases
-bullet = prism' build match
+bullet :: PPrism Text Cases
+bullet = pPrism parse render
   where
-    match = parseInContext $ uncurry Bullet <$> indentation <*> content
+    parse = uncurry Bullet <$> indentation <*> content
 
-    build (md, ctx) = (buildCases md, ctx)
+    render = buildCases
 
     content = pack <$> many1 (noneOf "\n") <* char '\n'
 
@@ -71,14 +71,13 @@ bullet = prism' build match
 
     noIndent = ("", 0) <$ string ""
 
-htc :: Pprism Text Cases
-htc = prism' build match
+htc :: PPrism Text Cases
+htc = pPrism parse render
   where
-    match = parseInContext $
-          (HeaderTitleContent <$> (numHashes <* char ' '))
+    parse = (HeaderTitleContent <$> (numHashes <* char ' '))
       <*> title
       <*> content
-    build (md, ctx) = (buildCases md, ctx)
+    render = buildCases
 
     numHashes = Prelude.length <$> many1 (char '#')
     title = pack <$> many1 (noneOf ['\n']) <* char '\n'
@@ -93,7 +92,7 @@ unindentBulletIntoSubheader style = execState $
        modify f
 
 
-headers :: Ptraversal Text Header
+headers :: PTraversal Text Header
 headers = choice' [
     ChoiceTraversal (h 1)
   , ChoiceTraversal (h 2)
@@ -103,12 +102,12 @@ headers = choice' [
   , ChoiceTraversal (h 6)
   ]
 
-skip :: [Char] -> Pprism Text Text
-skip toSkip = prism' id match
+skip :: [Char] -> PPrism Text Text
+skip toSkip = pPrism parse id
   where
-    match = parseInContext $ pack <$> many1 (noneOf toSkip)
+    parse = pack <$> many1 (noneOf toSkip)
 
-allTheHeaders :: Ptraversal Text (Either Header Text)
+allTheHeaders :: PTraversal Text (Either Header Text)
 allTheHeaders = many' (headers <||> skip "#")
 
 makeLenses ''Italic
