@@ -66,6 +66,31 @@ choice' [] = ignored
   where aConstfb  (a,ctx) = onlyIfLeft a ctx <$> Pair (Const (Any True)) (afb'' (Left a, ctx))
         afb' (a,ctx) = onlyIfRight a ctx <$> afb'' (Right a, ctx)
 
+withPrism' :: Prism' s a -> ((a -> s) -> (s -> Maybe a) -> r) -> r
+withPrism' p cont = withPrism p $ \build match ->
+    let match' s = case match s of
+          Right x -> Just x
+          Left _ -> Nothing
+    in cont build match'
+
+-- unlike `(<||>)` rebuilds according to `Left` or `Right`
+-- `(<||>)` cannot do this because traversals may have different numbers of elements
+-- this is also necessary to respect prism/traversal laws
+-- prism: if you review a `Left` case you can preview it back (and vice versa)
+-- traversal: if a `Left` is a traversal target, it should remain so when we turn it into a `Right`
+(<%>) :: PPrism s a -> PPrism s b -> PPrism s (Either a b)
+(<%>) left right =
+  withPrism' left $ \bu ma ->
+    withPrism' right $ \bu' ma' ->
+      let match s = case ma s of
+            Just (a, ctx)  -> Just (Left a, ctx)
+            Nothing -> case ma' s of
+              Just (b, ctx)  -> Just (Right b, ctx)
+              Nothing -> Nothing
+          build (Left a, ctx) = bu (a, ctx)
+          build (Right b, ctx) = bu' (b, ctx)
+      in prism' build match
+
 -- "horizontal" left-to-right composition
 -- depending on whether right must succeed or not
 (||>), (||>?) :: PTraversal a x -> PTraversal Text y -> PTraversal a (Either x y)

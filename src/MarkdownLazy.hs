@@ -42,24 +42,20 @@ h n = pPrism parse render
 
     hashes k = Prelude.take k (Prelude.repeat '#')
 
-data Cases =
-    Bullet Text Int Text
-  | HeaderTitleContent Int Text Text
-  | Plain Text
+data Bullet = Bullet Text Int Text
   deriving (Show)
-makePrisms ''Cases
+data HeaderTitleContent = HeaderTitleContent Int Text Text
+  deriving (Show)
+makePrisms ''Bullet
+makePrisms ''HeaderTitleContent
 
-buildCases :: Cases -> Text
-buildCases (Plain txt) = txt
-buildCases (Bullet style lvl txt) = T.replicate lvl style <> "- " <> txt <> "\n"
-buildCases (HeaderTitleContent lvl title content) = T.replicate lvl "#" <> " " <> title <> "\n" <> content
 
-bullet :: PPrism Text Cases
+bullet :: PPrism Text Bullet
 bullet = pPrism parse render
   where
     parse = uncurry Bullet <$> indentation <*> content
 
-    render = buildCases
+    render (Bullet style lvl txt) = T.replicate lvl style <> "- " <> txt <> "\n"
 
     content = pack <$> many1 (noneOf "\n") <* char '\n'
 
@@ -71,13 +67,14 @@ bullet = pPrism parse render
 
     noIndent = ("", 0) <$ string ""
 
-htc :: PPrism Text Cases
+htc :: PPrism Text HeaderTitleContent
 htc = pPrism parse render
   where
     parse = (HeaderTitleContent <$> (numHashes <* char ' '))
       <*> title
       <*> content
-    render = buildCases
+
+    render (HeaderTitleContent lvl title content) = T.replicate lvl "#" <> " " <> title <> "\n" <> content
 
     numHashes = Prelude.length <$> many1 (char '#')
     title = pack <$> many1 (noneOf ['\n']) <* char '\n'
@@ -87,8 +84,9 @@ unindentBulletIntoSubheader :: Text -> Text -> Text
 unindentBulletIntoSubheader style = execState $
   zoom (text . many' htc . _1 . _HeaderTitleContent) $ do
     (headerLevel, _, _) <- get
-    zoom (_3 . text . many' bullet . _1) $ do
-       let f (Bullet _ lvl content) = (if lvl==0 then (HeaderTitleContent (headerLevel+1) content "") else Bullet style (lvl-1) content)
+    zoom (_3 . text . many' (bullet <%> (h headerLevel)) . _1) $ do
+       let f (Left (Bullet _ lvl content)) = if lvl==0 then Right (Header (headerLevel+1) content) else Left (Bullet style (lvl-1) content)
+           f (Right x) = Right x
        modify f
 
 
