@@ -153,7 +153,31 @@ spec_markdown_lazy = do
 
      it "prism law" $ do
         let p = text . (i <%> strikethrough)
+
             built_left = review p (Left (Italic "_"), Context "" V.empty 0)
             built_right = review p (Right (Strikethrough "_"), Context "" V.empty 0)
+
         preview (text . (i <%> strikethrough) . _1) built_left `shouldBe` (Just (Left (Italic "_")))
         preview (text . (i <%> strikethrough) . _1) built_right `shouldBe` (Just (Right (Strikethrough "_")))
+
+     it "traversal law" $ do
+        let p = text . (h 1 <%> i) . _1
+
+            indentHeader (Left (Header lvl title)) = Left (Header (lvl+1) title)
+            indentHeader (Right x) = Right x
+
+            changeToItalic (Left (Header _ title)) = Right (Italic title)
+            changeToItalic (Right x) = Right x
+
+            changeToHeader (Left x) = Left x
+            changeToHeader (Right (Italic txt)) = Left (Header 1 txt)
+
+        over p (indentHeader . changeToItalic) "# h\n" `shouldBe` "*h*"
+        over p (indentHeader)                  "# h\n" `shouldBe` "## h\n"
+        over p (indentHeader . changeToHeader) "*i*" `shouldBe` "## i\n"
+
+        (over p indentHeader . over p changeToItalic $ "# h\n") `shouldBe`
+          over p (indentHeader . changeToItalic) "# h\n"
+
+        (over p indentHeader . over p changeToHeader $ "*i*") `shouldBe`
+          over p (indentHeader . changeToHeader) "*i*"
