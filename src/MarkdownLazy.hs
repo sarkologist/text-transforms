@@ -15,12 +15,17 @@ import Control.Lens hiding (Context, noneOf)
 import Control.Lens.TH
 import Control.Monad.State as S
 
-newtype Italic = Italic { _unItalic :: Text } deriving Show
-newtype Strikethrough = Strikethrough { _unStrikethrough :: Text } deriving Show
+newtype Italic = Italic { _unItalic :: Text } deriving (Eq, Show)
+newtype Strikethrough = Strikethrough { _unStrikethrough :: Text } deriving (Eq, Show)
 data Header = Header {
   _level :: Int,
   _content :: Text
-} deriving Show
+} deriving (Eq, Show)
+data Bullet = Bullet Text Int Text
+  deriving (Eq, Show)
+data HeaderTitleContent = HeaderTitleContent Int Text Text
+  deriving (Eq, Show)
+makePrisms ''HeaderTitleContent
 
 i :: PPrism Text Italic
 i = pPrism parse render
@@ -41,14 +46,6 @@ h n = pPrism parse render
     render (Header k txt) = pack (hashes k) <> " " <> txt <> "\n"
 
     hashes k = Prelude.take k (Prelude.repeat '#')
-
-data Bullet = Bullet Text Int Text
-  deriving (Show)
-data HeaderTitleContent = HeaderTitleContent Int Text Text
-  deriving (Show)
-makePrisms ''Bullet
-makePrisms ''HeaderTitleContent
-
 
 bullet :: PPrism Text Bullet
 bullet = pPrism parse render
@@ -114,3 +111,5 @@ makeLenses ''Strikethrough
 makePrisms ''Header
 makePrisms ''Italic
 makePrisms ''Strikethrough
+makePrisms ''Bullet
+
