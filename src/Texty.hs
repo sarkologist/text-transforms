@@ -132,8 +132,8 @@ andThen rightMustSucceed afbsft afbsft' afb'' s@(_, Context _ above lvl_s) =
           let isFocused = lvl > 0
               -- if not focused, discard the parent top-level 'unconsumed',
               --  since it is now the responsibility of afbsft'
-              --  we do it here since doing it at parent will propagate child unconsumed to it
-              --  and we would have to separate out child/parent unconsumed
+              --  we do it here since doing it at parent will rebuild child unconsumed into it
+              --  and we would have to disentangle child/parent unconsumed
               -- if focused, 'unconsumed' is bottom-level and local to afbst,
               --  so will be rebuilt into parent of focus
               ctx' = Context (if isFocused then unconsumed else "") abv lvl
