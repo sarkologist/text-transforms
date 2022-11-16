@@ -1,7 +1,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
-module LazyParseTransforms where
+module Texty where
 
 import Data.Text as T
 import Data.Vector as V

@@ -1,22 +1,23 @@
 {-# LANGUAGE OverloadedStrings #-}
-module MarkdownLazyTest where
+module TextyTest where
 
 import Test.Tasty
 import Test.Tasty.Hspec hiding (focus)
 
-import MarkdownLazy
-import LazyParseTransforms
+import MarkdownTexty
+import Texty
 import Control.Lens hiding (Context)
 import Data.Vector as V
 
-spec_markdown_lazy :: Spec
-spec_markdown_lazy = do
- describe "markdown lazy" $ do
+spec_texty :: Spec
+spec_texty = do
+ describe "markdown" $ do
    it "italic" $
      flip set "_" (text . i . _1 . unItalic)
        "*i*" `shouldBe`
        "*_*"
 
+ describe "combinators" $ do
    describe "||>" $ do
      it "left" $ do
        flip set "_" (text . (i ||> h 2) . _1 . _Left . unItalic)

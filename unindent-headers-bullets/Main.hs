@@ -1,8 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
-import MarkdownLazy
-import LazyParseTransforms
+import MarkdownTexty
+import Texty
 import Control.Lens
 
 import qualified Data.Text as T

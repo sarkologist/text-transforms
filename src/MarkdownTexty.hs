@@ -3,11 +3,11 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module MarkdownLazy where
+module MarkdownTexty where
 
 import MarkdownParse (withinMany)
 
-import LazyParseTransforms
+import Texty
 
 import Data.Text as T
 import Text.Parsec hiding (choice)
