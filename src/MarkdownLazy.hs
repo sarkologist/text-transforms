@@ -108,8 +108,3 @@ allTheHeaders = many' (headers <||> skip "#")
 makeLenses ''Italic
 makeLenses ''Header
 makeLenses ''Strikethrough
-makePrisms ''Header
-makePrisms ''Italic
-makePrisms ''Strikethrough
-makePrisms ''Bullet
-
