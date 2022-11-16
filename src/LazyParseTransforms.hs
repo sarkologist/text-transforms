@@ -18,9 +18,9 @@ type Parser a = Parsec Text () a
 -- second is list of unconsumeds after successive `focusing`
 -- which we need to preserve for ||> to know what is unconsumed at the level it is applied
 data Context = Context Text (Vector Text) Int deriving Show
-type P p f a b = Optic' p f (a, Context) (b, Context)
-type PPrism a b = forall p f. (Choice p, Applicative f) => P p f a b
-type PTraversal a b = forall f. (Applicative f) => P (->) f a b
+type P p f s a = Optic' p f (s, Context) (a, Context)
+type PPrism s a = forall p f. (Choice p, Applicative f) => P p f s a
+type PTraversal s a = forall f. (Applicative f) => P (->) f s a
 
 -- "vertical" top-down composition:
 focus :: Traversal' s Text -> PTraversal s Text
@@ -49,15 +49,15 @@ many' p = failing (some' p) ignored
     some' p = (p ||>? many' p) . alongside chosen id
 
 -- workaround for impredicative polymorphism
-newtype ChoiceTraversal a b = ChoiceTraversal { unChoiceTraversal :: PTraversal a b }
+newtype ChoiceTraversal s a = ChoiceTraversal { unChoiceTraversal :: PTraversal s a }
 
 -- unlike `(<||>)` requires same type
-choice' :: [ChoiceTraversal a b] -> PTraversal a b
+choice' :: [ChoiceTraversal s a] -> PTraversal s a
 choice' (ChoiceTraversal p:ps) = failing p (choice' ps)
 choice' [] = ignored
 
 -- unlike `failing` supports different types
-(<||>) :: PTraversal a x -> PTraversal a y -> PTraversal a (Either x y)
+(<||>) :: PTraversal s a -> PTraversal s b -> PTraversal s (Either a b)
 (<||>) afbst afbst' afb'' s =
   let Pair constt ft = afbst aConstfb s
   in case getConst constt of
@@ -93,7 +93,7 @@ withPrism' p cont = withPrism p $ \build match ->
 
 -- "horizontal" left-to-right composition
 -- depending on whether right must succeed or not
-(||>), (||>?) :: PTraversal a x -> PTraversal Text y -> PTraversal a (Either x y)
+(||>), (||>?) :: PTraversal s a -> PTraversal Text b -> PTraversal s (Either a b)
 (||>) = andThen True
 (||>?) = andThen False
 
@@ -103,7 +103,7 @@ withPrism' p cont = withPrism p $ \build match ->
 -- second crux is left may be focused,
 --   in which case we need to retrieve its parent unconsumed
 -- third crux is removing from unconsumed of left, the part which was also unconsumed by right
-andThen :: Bool -> PTraversal a x -> PTraversal Text y -> PTraversal a (Either x y)
+andThen :: Bool -> PTraversal s a -> PTraversal Text b -> PTraversal s (Either a b)
 andThen rightMustSucceed afbsft afbsft' afb'' s@(_, Context _ above lvl_s) =
   -- run left
   let Pair constt ft = afbsft aConstfb s
