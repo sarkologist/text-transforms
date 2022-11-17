@@ -82,10 +82,12 @@ unindentBulletIntoSubheader style = execState $
   zoom (text . many' htc . _1 . _HeaderTitleContent) $ do
     (headerLevel, _, _) <- get
     zoom (_3 . text . many' (bullet <%> (h headerLevel)) . _1) $ do
-       let f (Left (Bullet _ lvl content)) = if lvl==0 then Right (Header (headerLevel+1) content) else Left (Bullet style (lvl-1) content)
+       let f (Left (Bullet _ lvl content)) =
+             if lvl==0
+             then Right (Header (headerLevel+1) content)
+             else Left (Bullet style (lvl-1) content)
            f (Right x) = Right x
        modify f
-
 
 headers :: PTraversal Text Header
 headers = choice' [
