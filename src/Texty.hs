@@ -1,7 +1,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
-module LazyParseTransforms where
+module Texty where
 
 import Data.Text as T
 import Data.Vector as V
@@ -18,9 +18,9 @@ type Parser a = Parsec Text () a
 -- second is list of unconsumeds after successive `focusing`
 -- which we need to preserve for ||> to know what is unconsumed at the level it is applied
 data Context = Context Text (Vector Text) Int deriving Show
-type P p f a b = Optic' p f (a, Context) (b, Context)
-type PPrism a b = forall p f. (Choice p, Applicative f) => P p f a b
-type PTraversal a b = forall f. (Applicative f) => P (->) f a b
+type P p f s a = Optic' p f (s, Context) (a, Context)
+type PPrism s a = forall p f. (Choice p, Applicative f) => P p f s a
+type PTraversal s a = forall f. (Applicative f) => P (->) f s a
 
 -- "vertical" top-down composition:
 focus :: Traversal' s Text -> PTraversal s Text
@@ -49,15 +49,15 @@ many' p = failing (some' p) ignored
     some' p = (p ||>? many' p) . alongside chosen id
 
 -- workaround for impredicative polymorphism
-newtype ChoiceTraversal a b = ChoiceTraversal { unChoiceTraversal :: PTraversal a b }
+newtype ChoiceTraversal s a = ChoiceTraversal { unChoiceTraversal :: PTraversal s a }
 
 -- unlike `(<||>)` requires same type
-choice' :: [ChoiceTraversal a b] -> PTraversal a b
+choice' :: [ChoiceTraversal s a] -> PTraversal s a
 choice' (ChoiceTraversal p:ps) = failing p (choice' ps)
 choice' [] = ignored
 
 -- unlike `failing` supports different types
-(<||>) :: PTraversal a x -> PTraversal a y -> PTraversal a (Either x y)
+(<||>) :: PTraversal s a -> PTraversal s b -> PTraversal s (Either a b)
 (<||>) afbst afbst' afb'' s =
   let Pair constt ft = afbst aConstfb s
   in case getConst constt of
@@ -66,9 +66,34 @@ choice' [] = ignored
   where aConstfb  (a,ctx) = onlyIfLeft a ctx <$> Pair (Const (Any True)) (afb'' (Left a, ctx))
         afb' (a,ctx) = onlyIfRight a ctx <$> afb'' (Right a, ctx)
 
+withPrism' :: Prism' s a -> ((a -> s) -> (s -> Maybe a) -> r) -> r
+withPrism' p cont = withPrism p $ \build match ->
+    let match' s = case match s of
+          Right x -> Just x
+          Left _ -> Nothing
+    in cont build match'
+
+-- unlike `(<||>)` rebuilds according to `Left` or `Right`
+-- `(<||>)` cannot do this because traversals may have different numbers of elements
+-- this is also necessary to respect prism/traversal laws
+-- prism: if you review a `Left` case you can preview it back (and vice versa)
+-- traversal: if a `Left` is a traversal target, it should remain so when we turn it into a `Right`
+(<%>) :: PPrism s a -> PPrism s b -> PPrism s (Either a b)
+(<%>) left right =
+  withPrism' left $ \bu ma ->
+    withPrism' right $ \bu' ma' ->
+      let match s = case ma s of
+            Just (a, ctx)  -> Just (Left a, ctx)
+            Nothing -> case ma' s of
+              Just (b, ctx)  -> Just (Right b, ctx)
+              Nothing -> Nothing
+          build (Left a, ctx) = bu (a, ctx)
+          build (Right b, ctx) = bu' (b, ctx)
+      in prism' build match
+
 -- "horizontal" left-to-right composition
 -- depending on whether right must succeed or not
-(||>), (||>?) :: PTraversal a x -> PTraversal Text y -> PTraversal a (Either x y)
+(||>), (||>?) :: PTraversal s a -> PTraversal Text b -> PTraversal s (Either a b)
 (||>) = andThen True
 (||>?) = andThen False
 
@@ -78,7 +103,7 @@ choice' [] = ignored
 -- second crux is left may be focused,
 --   in which case we need to retrieve its parent unconsumed
 -- third crux is removing from unconsumed of left, the part which was also unconsumed by right
-andThen :: Bool -> PTraversal a x -> PTraversal Text y -> PTraversal a (Either x y)
+andThen :: Bool -> PTraversal s a -> PTraversal Text b -> PTraversal s (Either a b)
 andThen rightMustSucceed afbsft afbsft' afb'' s@(_, Context _ above lvl_s) =
   -- run left
   let Pair constt ft = afbsft aConstfb s
@@ -107,8 +132,8 @@ andThen rightMustSucceed afbsft afbsft' afb'' s@(_, Context _ above lvl_s) =
           let isFocused = lvl > 0
               -- if not focused, discard the parent top-level 'unconsumed',
               --  since it is now the responsibility of afbsft'
-              --  we do it here since doing it at parent will propagate child unconsumed to it
-              --  and we would have to separate out child/parent unconsumed
+              --  we do it here since doing it at parent will rebuild child unconsumed into it
+              --  and we would have to disentangle child/parent unconsumed
               -- if focused, 'unconsumed' is bottom-level and local to afbst,
               --  so will be rebuilt into parent of focus
               ctx' = Context (if isFocused then unconsumed else "") abv lvl

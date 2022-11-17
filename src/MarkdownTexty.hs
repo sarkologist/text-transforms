@@ -3,11 +3,11 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module MarkdownLazy where
+module MarkdownTexty where
 
 import MarkdownParse (withinMany)
 
-import LazyParseTransforms
+import Texty
 
 import Data.Text as T
 import Text.Parsec hiding (choice)
@@ -15,12 +15,17 @@ import Control.Lens hiding (Context, noneOf)
 import Control.Lens.TH
 import Control.Monad.State as S
 
-newtype Italic = Italic { _unItalic :: Text } deriving Show
-newtype Strikethrough = Strikethrough { _unStrikethrough :: Text } deriving Show
+newtype Italic = Italic { _unItalic :: Text } deriving (Eq, Show)
+newtype Strikethrough = Strikethrough { _unStrikethrough :: Text } deriving (Eq, Show)
 data Header = Header {
   _level :: Int,
   _content :: Text
-} deriving Show
+} deriving (Eq, Show)
+data Bullet = Bullet Text Int Text
+  deriving (Eq, Show)
+data HeaderTitleContent = HeaderTitleContent Int Text Text
+  deriving (Eq, Show)
+makePrisms ''HeaderTitleContent
 
 i :: PPrism Text Italic
 i = pPrism parse render
@@ -42,24 +47,12 @@ h n = pPrism parse render
 
     hashes k = Prelude.take k (Prelude.repeat '#')
 
-data Cases =
-    Bullet Text Int Text
-  | HeaderTitleContent Int Text Text
-  | Plain Text
-  deriving (Show)
-makePrisms ''Cases
-
-buildCases :: Cases -> Text
-buildCases (Plain txt) = txt
-buildCases (Bullet style lvl txt) = T.replicate lvl style <> "- " <> txt <> "\n"
-buildCases (HeaderTitleContent lvl title content) = T.replicate lvl "#" <> " " <> title <> "\n" <> content
-
-bullet :: PPrism Text Cases
+bullet :: PPrism Text Bullet
 bullet = pPrism parse render
   where
     parse = uncurry Bullet <$> indentation <*> content
 
-    render = buildCases
+    render (Bullet style lvl txt) = T.replicate lvl style <> "- " <> txt <> "\n"
 
     content = pack <$> many1 (noneOf "\n") <* char '\n'
 
@@ -71,13 +64,14 @@ bullet = pPrism parse render
 
     noIndent = ("", 0) <$ string ""
 
-htc :: PPrism Text Cases
+htc :: PPrism Text HeaderTitleContent
 htc = pPrism parse render
   where
     parse = (HeaderTitleContent <$> (numHashes <* char ' '))
       <*> title
       <*> content
-    render = buildCases
+
+    render (HeaderTitleContent lvl title content) = T.replicate lvl "#" <> " " <> title <> "\n" <> content
 
     numHashes = Prelude.length <$> many1 (char '#')
     title = pack <$> many1 (noneOf ['\n']) <* char '\n'
@@ -87,10 +81,13 @@ unindentBulletIntoSubheader :: Text -> Text -> Text
 unindentBulletIntoSubheader style = execState $
   zoom (text . many' htc . _1 . _HeaderTitleContent) $ do
     (headerLevel, _, _) <- get
-    zoom (_3 . text . many' bullet . _1) $ do
-       let f (Bullet _ lvl content) = (if lvl==0 then (HeaderTitleContent (headerLevel+1) content "") else Bullet style (lvl-1) content)
+    zoom (_3 . text . many' (bullet <%> (h headerLevel)) . _1) $ do
+       let f (Left (Bullet _ lvl content)) =
+             if lvl==0
+             then Right (Header (headerLevel+1) content)
+             else Left (Bullet style (lvl-1) content)
+           f (Right x) = Right x
        modify f
-
 
 headers :: PTraversal Text Header
 headers = choice' [
@@ -113,6 +110,3 @@ allTheHeaders = many' (headers <||> skip "#")
 makeLenses ''Italic
 makeLenses ''Header
 makeLenses ''Strikethrough
-makePrisms ''Header
-makePrisms ''Italic
-makePrisms ''Strikethrough

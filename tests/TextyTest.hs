@@ -1,21 +1,23 @@
 {-# LANGUAGE OverloadedStrings #-}
-module MarkdownLazyTest where
+module TextyTest where
 
 import Test.Tasty
 import Test.Tasty.Hspec hiding (focus)
 
-import MarkdownLazy
-import LazyParseTransforms
-import Control.Lens
+import MarkdownTexty
+import Texty
+import Control.Lens hiding (Context)
+import Data.Vector as V
 
-spec_markdown_lazy :: Spec
-spec_markdown_lazy = do
- describe "markdown lazy" $ do
+spec_texty :: Spec
+spec_texty = do
+ describe "markdown" $ do
    it "italic" $
      flip set "_" (text . i . _1 . unItalic)
        "*i*" `shouldBe`
        "*_*"
 
+ describe "combinators" $ do
    describe "||>" $ do
      it "left" $ do
        flip set "_" (text . (i ||> h 2) . _1 . _Left . unItalic)
@@ -144,8 +146,39 @@ spec_markdown_lazy = do
          "*i*# h1\n" `shouldBe`
          "*i*# _\n"
 
-   describe "can unnest types of parsed with sum types" $ do
+   describe "can change type of focus without violating laws" $ do
      it "unindenting level zero bullet makes it not bullet" $ do
-       flip over (\(Bullet style lvl content@txt) -> if lvl > 0 then (Bullet style (lvl-1) content) else Plain (txt <> "\n")) (text . many' bullet . _1)
+       flip over (\(Left (Bullet style lvl content@txt)) -> if lvl > 0 then (Left $ Bullet style (lvl-1) content) else Right (txt <> "\n")) (text . many' (bullet <%> skip "\n") . _1)
          "- b 1\n  - b 2\n" `shouldBe`
          "b 1\n- b 2\n"
+
+     it "prism law" $ do
+        let p = text . (i <%> strikethrough)
+
+            built_left = review p (Left (Italic "_"), Context "" V.empty 0)
+            built_right = review p (Right (Strikethrough "_"), Context "" V.empty 0)
+
+        preview (text . (i <%> strikethrough) . _1) built_left `shouldBe` (Just (Left (Italic "_")))
+        preview (text . (i <%> strikethrough) . _1) built_right `shouldBe` (Just (Right (Strikethrough "_")))
+
+     it "traversal law" $ do
+        let p = text . (h 1 <%> i) . _1
+
+            indentHeader (Left (Header lvl title)) = Left (Header (lvl+1) title)
+            indentHeader (Right x) = Right x
+
+            changeToItalic (Left (Header _ title)) = Right (Italic title)
+            changeToItalic (Right x) = Right x
+
+            changeToHeader (Left x) = Left x
+            changeToHeader (Right (Italic txt)) = Left (Header 1 txt)
+
+        over p (indentHeader . changeToItalic) "# h\n" `shouldBe` "*h*"
+        over p (indentHeader)                  "# h\n" `shouldBe` "## h\n"
+        over p (indentHeader . changeToHeader) "*i*" `shouldBe` "## i\n"
+
+        (over p indentHeader . over p changeToItalic $ "# h\n") `shouldBe`
+          over p (indentHeader . changeToItalic) "# h\n"
+
+        (over p indentHeader . over p changeToHeader $ "*i*") `shouldBe`
+          over p (indentHeader . changeToHeader) "*i*"
