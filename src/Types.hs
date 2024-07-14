@@ -12,6 +12,7 @@ data MarkdownItem a =
 data Inline a =
     BasicInline (Base a)
   | Italic [ Base a ]
+  | Highlight [ Base a ]
   | Bold [ Base a ]
   deriving (Eq, Show)
 

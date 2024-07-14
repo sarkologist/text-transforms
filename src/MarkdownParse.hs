@@ -46,7 +46,7 @@ header n = Header n <$>
   between (string (take n (repeat '#')) *> char ' ') endOfLine (many1 (markdownItemsBasic))
 
 markdownItemsBasic = choice . fmap try $ [
-    bold, italic, BasicInline <$> base
+    highlight, bold, italic, BasicInline <$> base
   ]
 
 base = choice [ inlineMath, unmarked ]
@@ -54,8 +54,9 @@ base = choice [ inlineMath, unmarked ]
 newlineMarkdown = Newline . (:[]) <$> endOfLine
 bold = Bold <$> withinMany (string "**") base
 italic = Italic <$> withinMany (char '*') base
+highlight = Highlight <$> withinMany (string "==") base
 
-unmarked = Unmarked <$> many1UntilNonGreedy anyChar (() <$ oneOf  "$*#\n" <|> eof)
+unmarked = Unmarked <$> many1UntilNonGreedy anyChar (() <$ oneOf  "$*#=\n" <|> eof)
 inlineMath = InlineMath <$> withinMany (char '$') anyChar
 
 bullets level = Bullets <$> many1 (base <|> check *> recurse)
