@@ -41,8 +41,8 @@ markdown = Markdown <$> many1UntilNonGreedy markdownItems (() <$ string "$$" <|>
     markdownItems = choice . fmap try $ [
         newlineMarkdown
       , MarkdownBullets <$> bullets 0
-      , Basic <$> markdownItemsBasic
       ] ++ fmap header [1..6]
+      ++ [Basic <$> markdownItemsBasic]
 
 header n = Header n <$>
   between (string (take n (repeat '#')) *> char ' ') endOfLine (many1 (markdownItemsBasic))
