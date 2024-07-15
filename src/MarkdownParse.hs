@@ -48,10 +48,10 @@ header n = Header n <$>
   between (string (take n (repeat '#')) *> char ' ') endOfLine (many1 markdownItemsBasic)
 
 markdownItemsBasic = choice . fmap try $ [
-    highlight, bold, italic, link , BasicInline <$> base (void (oneOf "*=") <|> void (string "[["))
+    highlight, bold, italic, link , BasicInline <$> base (oneOf "*=" <||> string "[[")
   ]
 
-base endWith = choice [ inlineMath, unmarked (void (char '$') <|> void endWith) ]
+base endWith = choice [ inlineMath, unmarked (char '$' <||> endWith) ]
 
 newlineMarkdown = Newline . (:[]) <$> endOfLine
 bold = Bold <$> withinMany (string "**") (base (char '*'))
@@ -64,7 +64,7 @@ link = Link <$> between (string "[[") (string "]]") (try onePart <|> twoPart)
 
 x <||> y = void x <|> void y
 
-unmarked endWith = Unmarked <$> many1UntilNonGreedy anyChar (void endWith <|> void (char '\n') <|> eof)
+unmarked endWith = Unmarked <$> many1UntilNonGreedy anyChar (endWith <||> char '\n' <|> eof)
 inlineMath = InlineMath <$> withinMany (char '$') anyChar
 
 bullets level = Bullets <$> many1 (base <|> check *> recurse)
