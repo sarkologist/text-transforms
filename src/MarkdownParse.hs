@@ -45,18 +45,24 @@ markdown = Markdown <$> many1UntilNonGreedy markdownItems (() <$ string "$$" <|>
       ++ [Basic <$> markdownItemsBasic]
 
 header n = Header n <$>
-  between (string (take n (repeat '#')) *> char ' ') endOfLine (many1 (markdownItemsBasic))
+  between (string (take n (repeat '#')) *> char ' ') endOfLine (many1 markdownItemsBasic)
 
 markdownItemsBasic = choice . fmap try $ [
     highlight, bold, italic, link , BasicInline <$> base (void (oneOf "*=") <|> void (string "[["))
   ]
 
 base endWith = choice [ inlineMath, unmarked (void (char '$') <|> void endWith) ]
+
 newlineMarkdown = Newline . (:[]) <$> endOfLine
 bold = Bold <$> withinMany (string "**") (base (char '*'))
 italic = Italic <$> withinMany (char '*') (base (char '*'))
 highlight = Highlight <$> withinMany (string "==") (base (char '='))
-link = Link <$> betweenMany (string "[[") (string "]]") (base (string "]]"))
+link = Link <$> between (string "[[") (string "]]") (try onePart <|> twoPart)
+  where
+    onePart = many1Until (base (string "]]" <||> char '|')) (lookAhead (string "]]"))
+    twoPart = many1Until (base (char '|')) (char '|') *> onePart
+
+x <||> y = void x <|> void y
 
 unmarked endWith = Unmarked <$> many1UntilNonGreedy anyChar (void endWith <|> void (char '\n') <|> eof)
 inlineMath = InlineMath <$> withinMany (char '$') anyChar
