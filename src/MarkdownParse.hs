@@ -9,7 +9,7 @@ import qualified Data.Text.Lazy.IO as LTIO
 import qualified Data.Text as T
 
 import Control.Monad.State
-import Control.Monad (void)
+import Control.Monad (void, MonadPlus (mzero))
 import Data.Maybe
 import Data.Monoid
 import Data.List
@@ -48,18 +48,17 @@ header n = Header n <$>
   between (string (take n (repeat '#')) *> char ' ') endOfLine (many1 (markdownItemsBasic))
 
 markdownItemsBasic = choice . fmap try $ [
-    highlight, bold, italic, link , BasicInline <$> base
+    highlight, bold, italic, link , BasicInline <$> base (void (oneOf "*=") <|> void (string "[["))
   ]
 
-base = choice [ inlineMath, unmarked ]
-
+base endWith = choice [ inlineMath, unmarked (void (char '$') <|> void endWith) ]
 newlineMarkdown = Newline . (:[]) <$> endOfLine
-bold = Bold <$> withinMany (string "**") base
-italic = Italic <$> withinMany (char '*') base
-highlight = Highlight <$> withinMany (string "==") base
-link = Link <$> betweenMany (string "[[") (string "]]") base
+bold = Bold <$> withinMany (string "**") (base (char '*'))
+italic = Italic <$> withinMany (char '*') (base (char '*'))
+highlight = Highlight <$> withinMany (string "==") (base (char '='))
+link = Link <$> betweenMany (string "[[") (string "]]") (base (string "]]"))
 
-unmarked = Unmarked <$> many1UntilNonGreedy anyChar (void (oneOf  "$*#=\n") <|> void (string "[[") <|> void (string "]]") <|> eof)
+unmarked endWith = Unmarked <$> many1UntilNonGreedy anyChar (void endWith <|> void (char '\n') <|> eof)
 inlineMath = InlineMath <$> withinMany (char '$') anyChar
 
 bullets level = Bullets <$> many1 (base <|> check *> recurse)
