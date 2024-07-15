@@ -1,7 +1,12 @@
 module Types where
 
 data Content a = Content [Item a] deriving (Eq, Show)
-data Item a = Markdown [MarkdownItem a] | BlockMath a deriving (Eq, Show)
+data Item a =
+   Markdown [MarkdownItem a]
+ | BlockMath a
+ | TikzDiagram a
+  deriving (Eq, Show)
+
 data MarkdownItem a =
     Basic (Inline a)
   | Newline a

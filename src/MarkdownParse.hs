@@ -35,7 +35,7 @@ within delim p = delim *> p <* delim
 withinMany delim = betweenMany delim delim
 betweenMany left right p = left *> many1Until p (lookAhead right) <* right
 
-markdown = Markdown <$> many1UntilNonGreedy markdownItems (() <$ string "$$" <|> eof)
+markdown endWith = Markdown <$> many1UntilNonGreedy markdownItems (endWith <|> eof)
   where
 
     markdownItems = choice . fmap try $ [
@@ -81,5 +81,9 @@ bulletNesting level = string (mconcat (replicate level "  ")) <|> string (replic
 
 blockMath = BlockMath <$> withinMany (string "$$") anyChar
 
+tikzDiagram = TikzDiagram <$> betweenMany tikzStart (string "\n\\end{document}\n```") anyChar
+
+tikzStart = string "```tikz\n\\usepackage{tikz-cd}\n\\begin{document}\n"
+
 everything :: ParsecT T.Text u Identity (Content String)
-everything = fmap Content . many1 . choice . fmap try $ [ blockMath, markdown ]
+everything = fmap Content . many1 . choice . fmap try $ [ blockMath, tikzDiagram, markdown (string "$$" <||> tikzStart) ]
