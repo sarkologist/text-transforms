@@ -14,6 +14,7 @@ data Inline a =
   | Italic [ Base a ]
   | Highlight [ Base a ]
   | Bold [ Base a ]
+  | Link [ Base a ]
   deriving (Eq, Show)
 
 data Base a =

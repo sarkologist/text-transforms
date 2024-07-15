@@ -9,6 +9,7 @@ import qualified Data.Text.Lazy.IO as LTIO
 import qualified Data.Text as T
 
 import Control.Monad.State
+import Control.Monad (void)
 import Data.Maybe
 import Data.Monoid
 import Data.List
@@ -31,7 +32,8 @@ many1UntilNonGreedy p end = do
   (:) <$> p <*> (many1UntilNonGreedy p end <|> [] <$ lookAhead end)
 
 within delim p = delim *> p <* delim
-withinMany delim p = delim *> many1Until p (lookAhead delim) <* delim
+withinMany delim = betweenMany delim delim
+betweenMany left right p = left *> many1Until p (lookAhead right) <* right
 
 markdown = Markdown <$> many1UntilNonGreedy markdownItems (() <$ string "$$" <|> eof)
   where
@@ -46,7 +48,7 @@ header n = Header n <$>
   between (string (take n (repeat '#')) *> char ' ') endOfLine (many1 (markdownItemsBasic))
 
 markdownItemsBasic = choice . fmap try $ [
-    highlight, bold, italic, BasicInline <$> base
+    highlight, bold, italic, link , BasicInline <$> base
   ]
 
 base = choice [ inlineMath, unmarked ]
@@ -55,8 +57,9 @@ newlineMarkdown = Newline . (:[]) <$> endOfLine
 bold = Bold <$> withinMany (string "**") base
 italic = Italic <$> withinMany (char '*') base
 highlight = Highlight <$> withinMany (string "==") base
+link = Link <$> betweenMany (string "[[") (string "]]") base
 
-unmarked = Unmarked <$> many1UntilNonGreedy anyChar (() <$ oneOf  "$*#=\n" <|> eof)
+unmarked = Unmarked <$> many1UntilNonGreedy anyChar (void (oneOf  "$*#=\n") <|> void (string "[[") <|> void (string "]]") <|> eof)
 inlineMath = InlineMath <$> withinMany (char '$') anyChar
 
 bullets level = Bullets <$> many1 (base <|> check *> recurse)

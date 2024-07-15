@@ -32,6 +32,7 @@ inlineToHtml (BasicInline x) = baseToHtml x
 inlineToHtml (Italic xs) = i_ . traverse_ baseToHtml $ xs
 inlineToHtml (Bold xs) = b_ . traverse_ baseToHtml $ xs
 inlineToHtml (Highlight xs) = b_ . traverse_ baseToHtml $ xs
+inlineToHtml (Link xs) = traverse_ baseToHtml xs
 
 baseToHtml (Unmarked x) = toHtml x
 baseToHtml (InlineMath x) = toHtml $ "\\(" <> x <> "\\)"
