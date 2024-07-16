@@ -11,9 +11,15 @@ import Data.Foldable
 markdownToHtml (Content xs) = div_ $ foldMap markdownItemToHtml xs
 
 --markdownItemToHtml :: (Monad m, Term (HtmlT m ()) result) => Item String -> result
-markdownItemToHtml (Markdown xs) = foldMap itemToHtml xs
+markdownItemToHtml (Markdown xs) = foldMap itemToHtml $ cleanUp xs
 markdownItemToHtml (BlockMath x) = toHtml $ "\\[" <> x <> "\\]"
 markdownItemToHtml (TikzDiagram x) = toHtml $ "[$$]" <> x <> "[/$$]"
+
+cleanUp (Newline x: Basic (Tag _): Newline _ : xs) = Newline x : cleanUp xs
+cleanUp (header@(Header _ _): Basic (Tag _): Newline _ : xs) = header : cleanUp xs
+cleanUp (Basic (Tag _) : xs) = cleanUp xs
+cleanUp (x:xs) = x : cleanUp xs
+cleanUp [] = []
 
 itemToHtml (Basic x) = inlineToHtml x
 itemToHtml (Newline _) = br_ []
@@ -34,6 +40,7 @@ inlineToHtml (Italic xs) = i_ . traverse_ baseToHtml $ xs
 inlineToHtml (Bold xs) = b_ . traverse_ baseToHtml $ xs
 inlineToHtml (Highlight xs) = b_ . traverse_ baseToHtml $ xs
 inlineToHtml (Link xs) = traverse_ baseToHtml xs
+inlineToHtml (Tag _) = pure ()
 
 baseToHtml (Unmarked x) = toHtml x
 baseToHtml (InlineMath x) = toHtml $ "\\(" <> x <> "\\)"

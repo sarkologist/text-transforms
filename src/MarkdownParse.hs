@@ -48,7 +48,7 @@ header n = Header n <$>
   between (string (take n (repeat '#')) *> char ' ') endOfLine (many1 markdownItemsBasic)
 
 markdownItemsBasic = choice . fmap try $ [
-    highlight, bold, italic, link , BasicInline <$> base (oneOf "*=" <||> string "[[")
+    highlight, bold, italic, link, tag, BasicInline <$> base (oneOf "*=" <||> string "[[")
   ]
 
 base endWith = choice [ inlineMath, unmarked (char '$' <||> endWith) ]
@@ -61,6 +61,10 @@ link = Link <$> between (string "[[") (string "]]") (try onePart <|> twoPart)
   where
     onePart = many1Until (base (string "]]" <||> char '|')) (lookAhead (string "]]"))
     twoPart = many1Until (base (char '|')) (char '|') *> onePart
+
+-- obsidian autocomplete adds a space after tags
+tag = Tag <$> (char '#' *> many1Until (oneOf tagChar) (lookAhead (noneOf tagChar)) <* optional (char ' '))
+  where tagChar = ['a'..'z'] ++ ['A'..'Z'] ++ ['-']
 
 x <||> y = void x <|> void y
 

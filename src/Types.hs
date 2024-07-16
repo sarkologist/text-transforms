@@ -20,6 +20,7 @@ data Inline a =
   | Highlight [ Base a ]
   | Bold [ Base a ]
   | Link [ Base a ]
+  | Tag a
   deriving (Eq, Show)
 
 data Base a =
