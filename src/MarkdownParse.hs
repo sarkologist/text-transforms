@@ -79,7 +79,7 @@ bulletLeaf level = between (bulletNesting level *> string "- ") (() <$ endOfLine
 
 bulletNesting level = string (mconcat (replicate level "  ")) <|> string (replicate level '\t')
 
-blockMath = BlockMath <$> withinMany (string "$$") anyChar
+blockMath = BlockMath <$> betweenMany (string "$$") (string "$$\n") anyChar
 
 tikzDiagram = TikzDiagram <$> betweenMany tikzStart (string "\n\\end{document}\n```") anyChar
 
