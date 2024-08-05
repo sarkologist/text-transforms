@@ -78,16 +78,16 @@ bullets level = Bullets <$> many1 (base <|> check *> recurse)
 
     check = try (lookAhead (bulletNesting (level+1)))
 
-bulletLeaf level = between (bulletNesting level *> string "- ") (() <$ endOfLine <|> eof) $
+bulletLeaf level = between (bulletNesting level *> string "- ") (endOfLine <||> eof) $
   BulletLeaf <$> many1 markdownItemsBasic
 
 bulletNesting level = string (mconcat (replicate level "  ")) <|> string (replicate level '\t')
 
-blockMath = BlockMath <$> betweenMany (string "$$") (string "$$\n") anyChar
+blockMath = BlockMath <$> betweenMany (string "$$") (string "$$") anyChar <* endOfLine
 
-tikzDiagram = TikzDiagram <$> betweenMany tikzStart (string "\n\\end{document}\n```") anyChar
+tikzDiagram = TikzDiagram <$> betweenMany tikzStart (string "\n\\end{document}\n```") anyChar <* endOfLine
 
-tikzStart = string "```tikz\n\\usepackage{tikz-cd}\n\\begin{document}\n"
+tikzStart = string "```tikz\n" *> many1UntilNonGreedy anyChar (string "\\begin{tikzcd}")
 
 everything :: ParsecT T.Text u Identity (Content String)
 everything = fmap Content . many1 . choice . fmap try $ [ blockMath, tikzDiagram, markdown (string "$$" <||> tikzStart) ]
