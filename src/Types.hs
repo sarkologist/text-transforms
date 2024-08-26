@@ -9,6 +9,7 @@ data Item a =
 
 data MarkdownItem a =
     Basic (Inline a)
+  | Blockquote [ Inline a ]
   | Newline a
   | MarkdownBullets (Bullets a)
   | Header Int [ Inline a ]

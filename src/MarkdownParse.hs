@@ -39,10 +39,14 @@ markdown endWith = Markdown <$> many1UntilNonGreedy markdownItems (endWith <|> e
   where
 
     markdownItems = choice . fmap try $ [
-        newlineMarkdown
+        Blockquote <$> blockquote
+      , newlineMarkdown
       , MarkdownBullets <$> bullets 0
       ] ++ fmap header [1..6]
       ++ [Basic <$> markdownItemsBasic]
+
+
+blockquote = endOfLine *> string "> " *> many1Until markdownItemsBasic endOfLine <* endOfLine
 
 header n = Header n <$>
   between (string (take n (repeat '#')) *> char ' ') endOfLine (many1 markdownItemsBasic)
