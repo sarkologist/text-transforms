@@ -13,7 +13,7 @@ markdownToHtml (Content xs) = div_ $ foldMap markdownItemToHtml xs
 --markdownItemToHtml :: (Monad m, Term (HtmlT m ()) result) => Item String -> result
 markdownItemToHtml (Markdown xs) = foldMap itemToHtml $ cleanUp xs
 markdownItemToHtml (BlockMath x) = toHtml $ "\\[" <> x <> "\\]"
-markdownItemToHtml (TikzDiagram x) = blockquote_ $ toHtml $ "[$$]" <> x <> "[/$$]"
+markdownItemToHtml (TikzDiagram x) = toHtml $ "[$$]" <> x <> "[/$$]"
 
 cleanUp (Newline x: Basic (Tag _): Newline _ : xs) = Newline x : cleanUp xs
 cleanUp (header@(Header _ _): Basic (Tag _): Newline _ : xs) = header : cleanUp xs

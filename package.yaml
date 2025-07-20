@@ -31,6 +31,9 @@ dependencies:
 - parsec
 - foldl
 - vector
+- containers
+- split
+- tagsoup
 
 library:
   source-dirs: src
@@ -49,6 +52,16 @@ tests:
       - tasty-discover
 
 executables:
+  lingvist-to-anki:
+    main:                Main.hs
+    source-dirs:         lingvist-to-anki
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - text-transforms
+
   wikipedia-latex:
     main:                Main.hs
     source-dirs:         wikipedia-latex

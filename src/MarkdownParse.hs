@@ -46,10 +46,10 @@ markdown endWith = Markdown <$> many1UntilNonGreedy markdownItems (endWith <|> e
       ++ [Basic <$> markdownItemsBasic]
 
 
-blockquote = endOfLine *> string "> " *> many1Until markdownItemsBasic endOfLine <* endOfLine
+blockquote = endOfLine *> string "> " *> many1Until markdownItemsBasic endOfLine
 
 header n = Header n <$>
-  between (string (take n (repeat '#')) *> char ' ') endOfLine (many1 markdownItemsBasic)
+  between (string (take n (repeat '#')) *> char ' ') (lookAhead endOfLine) (many1 markdownItemsBasic)
 
 markdownItemsBasic = choice . fmap try $ [
     highlight, bold, italic, link, tag, BasicInline <$> base (oneOf "*=" <||> string "[[")
