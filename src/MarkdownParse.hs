@@ -89,7 +89,7 @@ bulletNesting level = string (mconcat (replicate level "  ")) <|> string (replic
 
 blockMath = BlockMath <$> betweenMany (string "$$") (string "$$") anyChar <* endOfLine
 
-tikzDiagram = TikzDiagram <$> betweenMany tikzStart (string "\n\\end{document}\n```") anyChar <* endOfLine
+tikzDiagram = TikzDiagram <$> betweenMany tikzStart (try (string "\n\\end{document}\n```")) anyChar <* endOfLine
 
 tikzStart = string "```tikz\n" *> many1UntilNonGreedy anyChar (string "\\begin{tikzcd}")
 
