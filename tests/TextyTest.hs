@@ -2,7 +2,7 @@
 module TextyTest where
 
 import Test.Tasty
-import Test.Tasty.Hspec hiding (focus)
+import Test.Hspec hiding (focus)
 
 import MarkdownTexty
 import Texty

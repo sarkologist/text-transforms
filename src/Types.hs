@@ -12,6 +12,7 @@ data MarkdownItem a =
   | Blockquote [ Inline a ]
   | Newline a
   | MarkdownBullets (Bullets a)
+  | MarkdownTable (Table a)
   | Header Int [ Inline a ]
   deriving (Eq, Show)
 
@@ -35,4 +36,7 @@ data Bullets a = Bullets [ BulletItem a ]
 data BulletItem a =
     BulletLeaf [ Inline a ]
   | BulletRecurse (Bullets a)
+  deriving (Eq, Show)
+
+data Table a = Table [[ Inline a ]] [[[ Inline a ]]]
   deriving (Eq, Show)

@@ -14,6 +14,7 @@ import Data.Maybe
 import Data.Monoid
 import Data.List
 import Data.Functor.Identity
+import Data.Char (isSpace)
 
 import Text.Parsec
 import Lucid
@@ -42,6 +43,7 @@ markdown endWith = Markdown <$> many1UntilNonGreedy markdownItems (endWith <|> e
         Blockquote <$> blockquote
       , newlineMarkdown
       , MarkdownBullets <$> bullets 0
+      , MarkdownTable <$> table
       ] ++ fmap header [1..6]
       ++ [Basic <$> markdownItemsBasic]
 
@@ -87,7 +89,53 @@ bulletLeaf level = between (bulletNesting level *> string "- ") (endOfLine <||> 
 
 bulletNesting level = string (mconcat (replicate level "  ")) <|> string (replicate level '\t')
 
-blockMath = BlockMath <$> betweenMany (string "$$") (string "$$") anyChar <* endOfLine
+table = try $ do
+  headerCells <- tableRow
+  separatorCells <- tableSeparatorRow
+  bodyRows <- many tableRow
+  let columnCount = length headerCells
+  if columnCount == separatorCells && all ((== columnCount) . length) bodyRows
+    then return (Table headerCells bodyRows)
+    else fail "table rows must all have the same number of columns"
+
+tableRow = try $ do
+  rawCells <- tableCells <$> tableLine
+  case traverse parseTableCell rawCells of
+    Left err -> fail (show err)
+    Right cells -> return cells
+
+tableSeparatorRow = try $ do
+  rawCells <- tableCells <$> tableLine
+  if not (null rawCells) && all tableSeparatorCell rawCells
+    then return (length rawCells)
+    else fail "expected table separator row"
+
+tableLine = try $ do
+  line <- manyTill anyChar (try (endOfLine <||> eof))
+  if '|' `elem` line
+    then return line
+    else fail "expected table row"
+
+tableCells line = fmap (T.unpack . T.strip) . T.splitOn "|" . stripOuterPipes . T.strip $ T.pack line
+  where
+    stripOuterPipes txt = stripTrailingPipe . stripLeadingPipe $ txt
+    stripLeadingPipe txt =
+      case T.uncons txt of
+        Just ('|', rest) -> rest
+        _ -> txt
+    stripTrailingPipe txt =
+      case T.unsnoc txt of
+        Just (rest, '|') -> rest
+        _ -> txt
+
+tableSeparatorCell cell =
+  let stripped = filter (not . isSpace) cell
+      withoutAlignment = dropWhile (== ':') . reverse . dropWhile (== ':') . reverse $ stripped
+  in length withoutAlignment >= 3 && all (== '-') withoutAlignment
+
+parseTableCell cell = parse (many markdownItemsBasic <* eof) "" (T.pack cell)
+
+blockMath = BlockMath <$> betweenMany (string "$$") (string "$$") anyChar <* (endOfLine <||> eof)
 
 tikzDiagram = TikzDiagram <$> betweenMany tikzStart (try (string "\n\\end{document}\n```")) anyChar <* endOfLine
 

@@ -7,18 +7,19 @@ import Test.Tasty.HUnit
 import Types
 import MarkdownParse
 
-import Text.Parsec (parse)
+import Text.Parsec (char, eof, parse)
+import qualified Data.Text as T
 
 test_individual :: TestTree
 test_individual =
   testGroup "individual"
   [
     testCase "unmarked" $
-      parse unmarked "" "abc" @?= Right (Unmarked $ "abc")
+      parse (unmarked eof) "" ("abc" :: T.Text) @?= Right (Unmarked $ "abc")
   , testCase "newline" $
       parse newlineMarkdown "" "\n" @?= Right (Newline "\n")
   , testCase "unmarked only" $
-      parse unmarked "" "abc*i*" @?= Right (Unmarked $ "abc")
+      parse (unmarked (char '*')) "" ("abc*i*" :: T.Text) @?= Right (Unmarked $ "abc")
   , testCase "italic" $
       parse italic "" "*abc*" @?= Right (Italic [Unmarked "abc"])
   , testCase "math inside italic" $
@@ -90,6 +91,28 @@ test_individual =
           ]
         ])
     ]
+  , testGroup "tables" [
+      testCase "basic" $
+        parse table "" "| A | B |\n| --- | --- |\n| 1 | 2 |\n" @?= Right (Table [
+            [ BasicInline . Unmarked $ "A" ]
+          , [ BasicInline . Unmarked $ "B" ]
+          ] [
+            [
+              [ BasicInline . Unmarked $ "1" ]
+            , [ BasicInline . Unmarked $ "2" ]
+            ]
+          ])
+    , testCase "inline formatting" $
+        parse table "" "| A | B |\n| --- | --- |\n| *i* | **b** |\n" @?= Right (Table [
+            [ BasicInline . Unmarked $ "A" ]
+          , [ BasicInline . Unmarked $ "B" ]
+          ] [
+            [
+              [ Italic [Unmarked "i"] ]
+            , [ Bold [Unmarked "b"] ]
+            ]
+          ])
+    ]
   ]
 
 
@@ -99,12 +122,12 @@ test_complex =
       testGroup "unmarked" $
       [
         testCase "non-greedy" $
-          parse (unmarked *> italic) "" "abc *i*" @?= Right ((Italic [Unmarked "i"]) )
+          parse (unmarked (char '*') *> italic) "" "abc *i*" @?= Right ((Italic [Unmarked "i"]) )
       ]
     , testGroup "newline" $
       [
         testCase "in markdown" $
-          parse markdown "" "abc\n123" @?= Right (Markdown $ [
+          parse (markdown eof) "" "abc\n123" @?= Right (Markdown $ [
             Basic . BasicInline . Unmarked $ "abc"
           , Newline "\n"
           , Basic . BasicInline . Unmarked $ "123"
@@ -113,9 +136,9 @@ test_complex =
     , testGroup "markdown"
     [
       testCase "unmarked" $
-        parse markdown "" "abc" @?= Right (Markdown [ Basic (BasicInline (Unmarked "abc")) ])
+        parse (markdown eof) "" "abc" @?= Right (Markdown [ Basic (BasicInline (Unmarked "abc")) ])
     , testCase "basic" $
-        parse markdown "" "abc *i* **b** $inline$" @?=
+        parse (markdown eof) "" "abc *i* **b** $inline$" @?=
           Right (Markdown . fmap Basic $ [
                 BasicInline . Unmarked $ "abc "
               , Italic [Unmarked "i"]
@@ -126,10 +149,26 @@ test_complex =
           ])
      , testGroup "bullet" [
           testCase "follows unmarked" $
-            parse markdown "" "abc\n- bullet\n" @?= Right (Markdown [
+            parse (markdown eof) "" "abc\n- bullet\n" @?= Right (Markdown [
                 Basic (BasicInline (Unmarked "abc"))
               , Newline "\n"
               , MarkdownBullets $ Bullets [ BulletLeaf [ BasicInline (Unmarked "bullet") ] ]
+              ])
+        ]
+    , testGroup "table" [
+          testCase "follows unmarked" $
+            parse (markdown eof) "" "abc\n| A | B |\n| --- | --- |\n| 1 | 2 |\n" @?= Right (Markdown [
+                Basic (BasicInline (Unmarked "abc"))
+              , Newline "\n"
+              , MarkdownTable $ Table [
+                  [ BasicInline . Unmarked $ "A" ]
+                , [ BasicInline . Unmarked $ "B" ]
+                ] [
+                  [
+                    [ BasicInline . Unmarked $ "1" ]
+                  , [ BasicInline . Unmarked $ "2" ]
+                  ]
+                ]
               ])
         ]
     ]

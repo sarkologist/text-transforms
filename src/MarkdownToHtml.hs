@@ -25,6 +25,7 @@ itemToHtml (Basic x) = inlineToHtml x
 itemToHtml (Blockquote xs) = blockquote_ $ foldMap inlineToHtml xs
 itemToHtml (Newline _) = br_ []
 itemToHtml (MarkdownBullets b) = bulletsToHtml b
+itemToHtml (MarkdownTable t) = tableToHtml t
 itemToHtml (Header 1 xs) = h1_ (foldMap inlineToHtml xs)
 itemToHtml (Header 2 xs) = h2_ (foldMap inlineToHtml xs)
 itemToHtml (Header 3 xs) = h3_ (foldMap inlineToHtml xs)
@@ -35,6 +36,15 @@ itemToHtml (Header 6 xs) = h6_ (foldMap inlineToHtml xs)
 bulletsToHtml (Bullets bs) = ul_ (traverse_ bulletItemToHtml bs)
 bulletItemToHtml (BulletLeaf xs) = li_ (traverse_ inlineToHtml xs)
 bulletItemToHtml (BulletRecurse b) = bulletsToHtml b
+
+tableToHtml :: Monad m => Table String -> HtmlT m ()
+tableToHtml (Table headerRows bodyRows) =
+  table_ $ do
+    thead_ . tr_ $ traverse_ (th_ . traverse_ inlineToHtml) headerRows
+    tbody_ $ traverse_ tableRowToHtml bodyRows
+
+tableRowToHtml :: Monad m => [[Inline String]] -> HtmlT m ()
+tableRowToHtml cells = tr_ $ traverse_ (td_ . traverse_ inlineToHtml) cells
 
 inlineToHtml (BasicInline x) = baseToHtml x
 inlineToHtml (Italic xs) = i_ . traverse_ baseToHtml $ xs
