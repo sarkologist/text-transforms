@@ -12,6 +12,7 @@ data MarkdownItem a =
   | Blockquote [ MarkdownItem a ]
   | Newline a
   | MarkdownBullets (Bullets a)
+  | MarkdownBlockMath a
   | MarkdownTable (Table a)
   | Header Int [ Inline a ]
   deriving (Eq, Show)
@@ -30,11 +31,14 @@ data Base a =
   | InlineMath a
   deriving (Eq, Show)
 
-data Bullets a = Bullets [ BulletItem a ]
+data ListKind = UnorderedList | OrderedList
+  deriving (Eq, Show)
+
+data Bullets a = Bullets ListKind [ BulletItem a ]
   deriving (Eq, Show)
 
 data BulletItem a =
-    BulletLeaf [ Inline a ]
+    BulletLeaf [ MarkdownItem a ]
   | BulletRecurse (Bullets a)
   deriving (Eq, Show)
 

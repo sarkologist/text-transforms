@@ -43,7 +43,8 @@ markdown endWith = Markdown <$> many1UntilNonGreedy markdownItems (endWith <|> e
     markdownItems = choice . fmap try $ [
         Blockquote <$> blockquote
       , newlineMarkdown
-      , MarkdownBullets <$> bullets 0
+      , MarkdownBullets <$> markdownList 0
+      , MarkdownBlockMath <$> markdownBlockMath
       , MarkdownTable <$> table
       ] ++ fmap header [1..6]
       ++ [Basic <$> markdownItemsBasic]
@@ -97,17 +98,53 @@ x <||> y = void x <|> void y
 unmarked endWith = Unmarked <$> many1UntilNonGreedy anyChar (endWith <||> char '\n' <|> eof)
 inlineMath = InlineMath <$> withinMany (char '$') anyChar
 
-bullets level = Bullets <$> many1 (base <|> check *> recurse)
+markdownList level = do
+  kind <- lookAhead (listKindAtLevel level)
+  listOfKind kind level
+
+bullets = listOfKind UnorderedList
+
+numbered = listOfKind OrderedList
+
+listOfKind kind level = Bullets kind <$> many1 ((base <|> check *> recurse) <* many blankLine)
   where
     base = try (bulletLeaf level)
-    recurse = BulletRecurse <$> bullets (level+1)
+    recurse = BulletRecurse <$> markdownList (level+1)
 
-    check = try (lookAhead (bulletNesting (level+1)))
+    check = try (lookAhead (listKindAtLevel (level+1)))
 
-bulletLeaf level = between (bulletNesting level *> string "- ") (endOfLine <||> eof) $
-  BulletLeaf <$> many1 markdownItemsBasic
+    bulletLeaf level = do
+      indent <- bulletNesting level
+      marker <- listMarker kind
+      firstLine <- manyTill anyChar (lookAhead (endOfLine <||> eof))
+      endOfLine <||> eof
+      rest <- many (try (continuationLine indent marker level))
+      BulletLeaf <$> parseListItemContent (intercalate "\n" (firstLine:rest))
+
+listKindAtLevel level = bulletNesting level *> choice (fmap try [
+    UnorderedList <$ string "- "
+  , OrderedList <$ (many1 digit *> string ". ")
+  ])
+
+listMarker UnorderedList = string "- "
+listMarker OrderedList = (<>) <$> many1 digit <*> string ". "
 
 bulletNesting level = string (mconcat (replicate level "  ")) <|> string (replicate level '\t')
+
+continuationLine indent marker level = do
+  notFollowedBy (listKindAtLevel level)
+  notFollowedBy (listKindAtLevel (level+1))
+  string (indent <> replicate (length marker) ' ') <|> string (indent <> "\t")
+  manyTill anyChar (try (endOfLine <||> eof))
+
+blankLine = try (many (char ' ') *> endOfLine)
+
+parseListItemContent source =
+  case parse (markdown eof) "" (T.pack (dropFinalNewline source)) of
+    Left err -> fail (show err)
+    Right (Markdown items) -> return items
+
+markdownBlockMath = betweenMany (string "$$") (string "$$") anyChar <* (endOfLine <||> eof)
 
 table = try $ do
   headerCells <- tableRow
@@ -155,7 +192,7 @@ tableSeparatorCell cell =
 
 parseTableCell cell = parse (many markdownItemsBasic <* eof) "" (T.pack cell)
 
-blockMath = BlockMath <$> betweenMany (string "$$") (string "$$") anyChar <* (endOfLine <||> eof)
+blockMath = BlockMath <$> markdownBlockMath
 
 tikzDiagram = TikzDiagram <$> betweenMany tikzStart (try (string "\n\\end{document}\n```")) anyChar <* endOfLine
 

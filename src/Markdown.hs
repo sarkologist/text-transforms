@@ -14,11 +14,11 @@ unindent x = [x]
 
 
 unindentBullets :: Bullets a -> [ MarkdownItem a ]
-unindentBullets (Bullets bs) = concat $ onitems . unbullet <$> bs
+unindentBullets (Bullets _ bs) = concat $ onitems . unbullet <$> bs
   where
-    onitems (Left is) = Basic <$> is
-    onitems (Right (Bullets bs)) = [ MarkdownBullets (Bullets bs) ]
+    onitems (Left is) = is
+    onitems (Right b) = [ MarkdownBullets b ]
 
-unbullet :: BulletItem a -> Either [Inline a] (Bullets a)
+unbullet :: BulletItem a -> Either [MarkdownItem a] (Bullets a)
 unbullet (BulletLeaf is) = Left is
 unbullet (BulletRecurse bs) = Right bs

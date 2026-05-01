@@ -10,6 +10,10 @@ import MarkdownParse
 import Text.Parsec (char, eof, parse)
 import qualified Data.Text as T
 
+ul = Bullets UnorderedList
+ol = Bullets OrderedList
+leaf = BulletLeaf . fmap Basic
+
 test_individual :: TestTree
 test_individual =
   testGroup "individual"
@@ -56,25 +60,25 @@ test_individual =
     ]
   , testGroup "bullets" [
       testCase "one item" $
-        parse (bullets 0) "" "- a\n" @?= Right (Bullets [BulletLeaf [ BasicInline . Unmarked $ "a" ]])
+        parse (bullets 0) "" "- a\n" @?= Right (ul [leaf [ BasicInline . Unmarked $ "a" ]])
     , testCase "two items" $
-        parse (bullets 0) "" "- a\n- b\n" @?= Right (Bullets [
-          BulletLeaf [ BasicInline . Unmarked $ "a" ],
-          BulletLeaf [ BasicInline . Unmarked $ "b" ]
+        parse (bullets 0) "" "- a\n- b\n" @?= Right (ul [
+          leaf [ BasicInline . Unmarked $ "a" ],
+          leaf [ BasicInline . Unmarked $ "b" ]
         ])
     , testCase "not followed by final newline" $
-        parse (bullets 0) "" "- a" @?= Right (Bullets [BulletLeaf [ BasicInline . Unmarked $ "a" ]])
+        parse (bullets 0) "" "- a" @?= Right (ul [leaf [ BasicInline . Unmarked $ "a" ]])
     , testCase "not followed by empty line" $
-        parse (bullets 0) "" "- a\n something" @?= Right (Bullets [BulletLeaf [ BasicInline . Unmarked $ "a" ]])
+        parse (bullets 0) "" "- a\n something" @?= Right (ul [leaf [ BasicInline . Unmarked $ "a" ]])
     , testCase "nested" $
         parse (bullets 0) ""
           "- a\n\
           \  - b\n\
-          \  - c\n" @?= Right (Bullets [
-          BulletLeaf [ BasicInline . Unmarked $ "a" ]
-        , BulletRecurse $ Bullets [
-            BulletLeaf [ BasicInline . Unmarked $ "b" ]
-          , BulletLeaf [ BasicInline . Unmarked $ "c" ]
+          \  - c\n" @?= Right (ul [
+          leaf [ BasicInline . Unmarked $ "a" ]
+        , BulletRecurse $ ul [
+            leaf [ BasicInline . Unmarked $ "b" ]
+          , leaf [ BasicInline . Unmarked $ "c" ]
           ]
         ])
     , testCase "nested back up level" $
@@ -82,25 +86,58 @@ test_individual =
           "- a\n\
           \  - b\n\
           \  - c\n\
-          \- d\n" @?= Right (Bullets [
-          BulletLeaf [ BasicInline . Unmarked $ "a" ]
-        , BulletRecurse $ Bullets [
-            BulletLeaf [ BasicInline . Unmarked $ "b" ]
-          , BulletLeaf [ BasicInline . Unmarked $ "c" ]
+          \- d\n" @?= Right (ul [
+          leaf [ BasicInline . Unmarked $ "a" ]
+        , BulletRecurse $ ul [
+            leaf [ BasicInline . Unmarked $ "b" ]
+          , leaf [ BasicInline . Unmarked $ "c" ]
           ]
-        , BulletLeaf [ BasicInline . Unmarked $ "d" ]
+        , leaf [ BasicInline . Unmarked $ "d" ]
         ])
     , testCase "nested 3 levels" $
         parse (bullets 0) ""
           "- a\n\
           \  - b\n\
-          \    - c\n" @?= Right (Bullets [
-          BulletLeaf [ BasicInline . Unmarked $ "a" ]
-        , BulletRecurse $ Bullets [
-            BulletLeaf [ BasicInline . Unmarked $ "b" ]
-          , BulletRecurse $ Bullets [
-              BulletLeaf [ BasicInline . Unmarked $ "c" ]
+          \    - c\n" @?= Right (ul [
+          leaf [ BasicInline . Unmarked $ "a" ]
+        , BulletRecurse $ ul [
+            leaf [ BasicInline . Unmarked $ "b" ]
+          , BulletRecurse $ ul [
+              leaf [ BasicInline . Unmarked $ "c" ]
             ]
+          ]
+        ])
+    , testCase "numbered" $
+        parse (numbered 0) "" "1. a\n2. b\n" @?= Right (ol [
+          leaf [ BasicInline . Unmarked $ "a" ],
+          leaf [ BasicInline . Unmarked $ "b" ]
+        ])
+    , testCase "numbered multiline with block math" $
+        parse (numbered 0) "" (
+            "1. first line with $x$\n"
+         <> "   $$y$$\n"
+         <> "   after math\n"
+         <> "\n"
+         <> "2. second\n"
+        ) @?= Right (ol [
+          BulletLeaf [
+              Basic . BasicInline . Unmarked $ "first line with "
+            , Basic . BasicInline . InlineMath $ "x"
+            , Newline "\n"
+            , MarkdownBlockMath "y"
+            , Basic . BasicInline . Unmarked $ "after math"
+            ]
+        , leaf [ BasicInline . Unmarked $ "second" ]
+        ])
+    , testCase "mixed nested numbering" $
+        parse (bullets 0) ""
+          "- a\n\
+          \  1. b\n\
+          \  2. c\n" @?= Right (ul [
+          leaf [ BasicInline . Unmarked $ "a" ]
+        , BulletRecurse $ ol [
+            leaf [ BasicInline . Unmarked $ "b" ]
+          , leaf [ BasicInline . Unmarked $ "c" ]
           ]
         ])
     ]
@@ -175,13 +212,16 @@ test_complex =
                   Basic . BasicInline . Unmarked $ "[!theorem] Classification on "
                 , Basic . BasicInline . InlineMath $ "\\mathbb{C}/L"
                 , Newline "\n"
-                , Basic . BasicInline . Unmarked $ "1. "
-                , Basic . BasicInline . InlineMath $ "\\deg(D) = 0"
-                , Basic . BasicInline . Unmarked $ "."
-                , Newline "\n"
-                , Basic . BasicInline . Unmarked $ "2. "
-                , Basic . BasicInline . InlineMath $ "\\sum_k n_k z_k \\in L"
-                , Basic . BasicInline . Unmarked $ "."
+                , MarkdownBullets $ ol [
+                    leaf [
+                        BasicInline . InlineMath $ "\\deg(D) = 0"
+                      , BasicInline . Unmarked $ "."
+                      ]
+                  , leaf [
+                        BasicInline . InlineMath $ "\\sum_k n_k z_k \\in L"
+                      , BasicInline . Unmarked $ "."
+                      ]
+                  ]
                 ]
               ])
         ]
@@ -190,8 +230,17 @@ test_complex =
             parse (markdown eof) "" "abc\n- bullet\n" @?= Right (Markdown [
                 Basic (BasicInline (Unmarked "abc"))
               , Newline "\n"
-              , MarkdownBullets $ Bullets [ BulletLeaf [ BasicInline (Unmarked "bullet") ] ]
+              , MarkdownBullets $ ul [ leaf [ BasicInline (Unmarked "bullet") ] ]
               ])
+      , testCase "numbered list follows unmarked" $
+          parse (markdown eof) "" "abc\n1. first\n2. second\n" @?= Right (Markdown [
+              Basic (BasicInline (Unmarked "abc"))
+            , Newline "\n"
+            , MarkdownBullets $ ol [
+                leaf [ BasicInline (Unmarked "first") ]
+              , leaf [ BasicInline (Unmarked "second") ]
+              ]
+            ])
         ]
     , testGroup "table" [
           testCase "follows unmarked" $
