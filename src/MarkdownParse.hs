@@ -36,6 +36,7 @@ within delim p = delim *> p <* delim
 withinMany delim = betweenMany delim delim
 betweenMany left right p = left *> many1Until p (lookAhead right) <* right
 
+markdown :: ParsecT T.Text u Identity () -> ParsecT T.Text u Identity (Item String)
 markdown endWith = Markdown <$> many1UntilNonGreedy markdownItems (endWith <|> eof)
   where
 
@@ -48,7 +49,26 @@ markdown endWith = Markdown <$> many1UntilNonGreedy markdownItems (endWith <|> e
       ++ [Basic <$> markdownItemsBasic]
 
 
-blockquote = endOfLine *> string "> " *> many1Until markdownItemsBasic endOfLine
+blockquote :: ParsecT T.Text u Identity [MarkdownItem String]
+blockquote = do
+  quoted <- many1 quotedLine
+  case parse (markdown eof) "" (T.pack (dropFinalNewline (concat quoted))) of
+    Left err -> fail (show err)
+    Right (Markdown items) -> return items
+  where
+    quotedLine :: ParsecT T.Text u Identity String
+    quotedLine = do
+      char '>'
+      optional (char ' ')
+      line <- manyTill anyChar (lookAhead (endOfLine <||> eof))
+      lineEnding <- option "" ((:[]) <$> endOfLine)
+      return (line <> lineEnding)
+
+dropFinalNewline :: String -> String
+dropFinalNewline xs =
+  case reverse xs of
+    '\n':rest -> reverse rest
+    _ -> xs
 
 header n = Header n <$>
   between (string (take n (repeat '#')) *> char ' ') endOfLine (many1 markdownItemsBasic)

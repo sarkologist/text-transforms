@@ -22,7 +22,7 @@ cleanUp (x:xs) = x : cleanUp xs
 cleanUp [] = []
 
 itemToHtml (Basic x) = inlineToHtml x
-itemToHtml (Blockquote xs) = blockquote_ $ foldMap inlineToHtml xs
+itemToHtml (Blockquote xs) = blockquote_ $ foldMap itemToHtml xs
 itemToHtml (Newline _) = br_ []
 itemToHtml (MarkdownBullets b) = bulletsToHtml b
 itemToHtml (MarkdownTable t) = tableToHtml t

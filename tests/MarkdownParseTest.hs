@@ -41,6 +41,19 @@ test_individual =
         BasicInline $ Unmarked "abc ",
         Bold [Unmarked "bold"]
       ])
+  , testGroup "blockquotes" [
+      testCase "single line" $
+        parse blockquote "" "> quoted\n" @?= Right [
+          Basic . BasicInline . Unmarked $ "quoted"
+        ]
+    , testCase "multi line with inline formatting" $
+        parse blockquote "" "> **Careful**\n> $x$ matters\n" @?= Right [
+            Basic $ Bold [Unmarked "Careful"]
+          , Newline "\n"
+          , Basic . BasicInline . InlineMath $ "x"
+          , Basic . BasicInline . Unmarked $ " matters"
+        ]
+    ]
   , testGroup "bullets" [
       testCase "one item" $
         parse (bullets 0) "" "- a\n" @?= Right (Bullets [BulletLeaf [ BasicInline . Unmarked $ "a" ]])
@@ -147,6 +160,31 @@ test_complex =
               , BasicInline . Unmarked $ " "
               , BasicInline . InlineMath $ "inline"
           ])
+    , testGroup "blockquote" [
+          testCase "starts document" $
+            parse (markdown eof) "" "> [!warning]\n> Condition 1 alone is not sufficient!\n" @?= Right (Markdown [
+              Blockquote [
+                  Basic . BasicInline . Unmarked $ "[!warning]"
+                , Newline "\n"
+                , Basic . BasicInline . Unmarked $ "Condition 1 alone is not sufficient!"
+                ]
+              ])
+        , testCase "admonition title with math and numbered lines" $
+            parse (markdown eof) "" "> [!theorem] Classification on $\\mathbb{C}/L$\n> 1. $\\deg(D) = 0$.\n> 2. $\\sum_k n_k z_k \\in L$.\n" @?= Right (Markdown [
+              Blockquote [
+                  Basic . BasicInline . Unmarked $ "[!theorem] Classification on "
+                , Basic . BasicInline . InlineMath $ "\\mathbb{C}/L"
+                , Newline "\n"
+                , Basic . BasicInline . Unmarked $ "1. "
+                , Basic . BasicInline . InlineMath $ "\\deg(D) = 0"
+                , Basic . BasicInline . Unmarked $ "."
+                , Newline "\n"
+                , Basic . BasicInline . Unmarked $ "2. "
+                , Basic . BasicInline . InlineMath $ "\\sum_k n_k z_k \\in L"
+                , Basic . BasicInline . Unmarked $ "."
+                ]
+              ])
+        ]
      , testGroup "bullet" [
           testCase "follows unmarked" $
             parse (markdown eof) "" "abc\n- bullet\n" @?= Right (Markdown [

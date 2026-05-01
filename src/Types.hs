@@ -9,7 +9,7 @@ data Item a =
 
 data MarkdownItem a =
     Basic (Inline a)
-  | Blockquote [ Inline a ]
+  | Blockquote [ MarkdownItem a ]
   | Newline a
   | MarkdownBullets (Bullets a)
   | MarkdownTable (Table a)
