@@ -14,7 +14,7 @@ import Data.Maybe
 import Data.Monoid
 import Data.List
 import Data.Functor.Identity
-import Data.Char (isSpace)
+import Data.Char (isAlphaNum, isSpace, toLower)
 
 import Text.Parsec
 import Lucid
@@ -41,7 +41,8 @@ markdown endWith = Markdown <$> many1UntilNonGreedy markdownItems (endWith <|> e
   where
 
     markdownItems = choice . fmap try $ [
-        Blockquote <$> blockquote
+        callout
+      , Blockquote <$> blockquote
       , newlineMarkdown
       , MarkdownBullets <$> markdownList 0
       , MarkdownBlockMath <$> markdownBlockMath
@@ -56,14 +57,70 @@ blockquote = do
   case parse (markdown eof) "" (T.pack (dropFinalNewline (concat quoted))) of
     Left err -> fail (show err)
     Right (Markdown items) -> return items
+
+callout :: ParsecT T.Text u Identity (MarkdownItem String)
+callout = do
+  quoted <- many1 quotedLine
+  case calloutFromSource (dropFinalNewline (concat quoted)) of
+    Left err -> fail err
+    Right (kind, title, items) -> return (Callout kind title items)
+
+quotedLine :: ParsecT T.Text u Identity String
+quotedLine = do
+  char '>'
+  optional (char ' ')
+  line <- manyTill anyChar (lookAhead (endOfLine <||> eof))
+  lineEnding <- option "" ((:[]) <$> endOfLine)
+  return (line <> lineEnding)
+
+calloutFromSource :: String -> Either String (String, [Inline String], [MarkdownItem String])
+calloutFromSource source = do
+  (kind, titleSource, bodySource) <- firstLineCallout source
+  title <- parseCalloutTitle titleSource
+  body <- parseCalloutBody bodySource
+  return (kind, title, body)
+
+firstLineCallout :: String -> Either String (String, String, String)
+firstLineCallout source =
+  let (firstLine, rest) = break (== '\n') source
+      body = case rest of
+        '\n':xs -> xs
+        _ -> ""
+  in case parse calloutMarker "" firstLine of
+    Left err -> Left (show err)
+    Right (kind, title) -> Right (kind, title, body)
+
+calloutMarker :: Parsec String () (String, String)
+calloutMarker = do
+  string "[!"
+  rawKind <- many1 (satisfy calloutKindChar)
+  char ']'
+  title <- option "" (char ' ' *> many anyChar)
+  eof
+  return (normalizeCalloutKind rawKind, title)
+
+calloutKindChar :: Char -> Bool
+calloutKindChar c = isAlphaNum c || c == '_' || c == '-'
+
+normalizeCalloutKind :: String -> String
+normalizeCalloutKind = fmap normalizeChar
   where
-    quotedLine :: ParsecT T.Text u Identity String
-    quotedLine = do
-      char '>'
-      optional (char ' ')
-      line <- manyTill anyChar (lookAhead (endOfLine <||> eof))
-      lineEnding <- option "" ((:[]) <$> endOfLine)
-      return (line <> lineEnding)
+    normalizeChar '_' = '-'
+    normalizeChar c = toLower c
+
+parseCalloutTitle :: String -> Either String [Inline String]
+parseCalloutTitle "" = Right []
+parseCalloutTitle source =
+  case parse (many markdownItemsBasic <* eof) "" (T.pack source) of
+    Left err -> Left (show err)
+    Right title -> Right title
+
+parseCalloutBody :: String -> Either String [MarkdownItem String]
+parseCalloutBody "" = Right []
+parseCalloutBody source =
+  case parse (markdown eof) "" (T.pack source) of
+    Left err -> Left (show err)
+    Right (Markdown items) -> Right items
 
 dropFinalNewline :: String -> String
 dropFinalNewline xs =

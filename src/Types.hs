@@ -10,6 +10,7 @@ data Item a =
 data MarkdownItem a =
     Basic (Inline a)
   | Blockquote [ MarkdownItem a ]
+  | Callout a [ Inline a ] [ MarkdownItem a ]
   | Newline a
   | MarkdownBullets (Bullets a)
   | MarkdownBlockMath a

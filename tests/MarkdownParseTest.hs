@@ -45,7 +45,7 @@ test_individual =
         BasicInline $ Unmarked "abc ",
         Bold [Unmarked "bold"]
       ])
-  , testGroup "blockquotes" [
+    , testGroup "blockquotes" [
       testCase "single line" $
         parse blockquote "" "> quoted\n" @?= Right [
           Basic . BasicInline . Unmarked $ "quoted"
@@ -57,6 +57,23 @@ test_individual =
           , Basic . BasicInline . InlineMath $ "x"
           , Basic . BasicInline . Unmarked $ " matters"
         ]
+    , testCase "callout" $
+        parse callout "" "> [!definition]\n> A **group**.\n" @?= Right (
+          Callout "definition" [] [
+              Basic . BasicInline . Unmarked $ "A "
+            , Basic $ Bold [Unmarked "group"]
+            , Basic . BasicInline . Unmarked $ "."
+            ]
+        )
+    , testCase "callout title" $
+        parse callout "" "> [!Important_Note] Classification on $\\mathbb{C}/L$\n> body\n" @?= Right (
+          Callout "important-note" [
+              BasicInline . Unmarked $ "Classification on "
+            , BasicInline . InlineMath $ "\\mathbb{C}/L"
+            ] [
+              Basic . BasicInline . Unmarked $ "body"
+            ]
+        )
     ]
   , testGroup "bullets" [
       testCase "one item" $
@@ -198,21 +215,19 @@ test_complex =
               , BasicInline . InlineMath $ "inline"
           ])
     , testGroup "blockquote" [
-          testCase "starts document" $
+      testCase "starts document" $
             parse (markdown eof) "" "> [!warning]\n> Condition 1 alone is not sufficient!\n" @?= Right (Markdown [
-              Blockquote [
-                  Basic . BasicInline . Unmarked $ "[!warning]"
-                , Newline "\n"
-                , Basic . BasicInline . Unmarked $ "Condition 1 alone is not sufficient!"
+              Callout "warning" [] [
+                  Basic . BasicInline . Unmarked $ "Condition 1 alone is not sufficient!"
                 ]
               ])
         , testCase "admonition title with math and numbered lines" $
             parse (markdown eof) "" "> [!theorem] Classification on $\\mathbb{C}/L$\n> 1. $\\deg(D) = 0$.\n> 2. $\\sum_k n_k z_k \\in L$.\n" @?= Right (Markdown [
-              Blockquote [
-                  Basic . BasicInline . Unmarked $ "[!theorem] Classification on "
-                , Basic . BasicInline . InlineMath $ "\\mathbb{C}/L"
-                , Newline "\n"
-                , MarkdownBullets $ ol [
+              Callout "theorem" [
+                  BasicInline . Unmarked $ "Classification on "
+                , BasicInline . InlineMath $ "\\mathbb{C}/L"
+                ] [
+                  MarkdownBullets $ ol [
                     leaf [
                         BasicInline . InlineMath $ "\\deg(D) = 0"
                       , BasicInline . Unmarked $ "."
@@ -222,6 +237,14 @@ test_complex =
                       , BasicInline . Unmarked $ "."
                       ]
                   ]
+                ]
+              ])
+        , testCase "invalid callout marker remains blockquote" $
+            parse (markdown eof) "" "> [!my definition]\n> body\n" @?= Right (Markdown [
+              Blockquote [
+                  Basic . BasicInline . Unmarked $ "[!my definition]"
+                , Newline "\n"
+                , Basic . BasicInline . Unmarked $ "body"
                 ]
               ])
         ]

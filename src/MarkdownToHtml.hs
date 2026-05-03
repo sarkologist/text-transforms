@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings #-}
 module MarkdownToHtml where
 
 import Types
@@ -7,6 +8,9 @@ import Lucid
 
 import Data.Monoid
 import Data.Foldable
+import Data.Char (toUpper)
+import Data.List (intercalate)
+import qualified Data.Text as T
 
 markdownToHtml (Content xs) = div_ $ foldMap markdownItemToHtml xs
 
@@ -23,6 +27,10 @@ cleanUp [] = []
 
 itemToHtml (Basic x) = inlineToHtml x
 itemToHtml (Blockquote xs) = blockquote_ $ foldMap itemToHtml xs
+itemToHtml (Callout kind title xs) =
+  aside_ [class_ (T.pack (calloutClasses kind))] $ do
+    div_ [class_ "callout-title"] (calloutTitle kind title)
+    div_ [class_ "callout-content"] (foldMap itemToHtml (cleanUp xs))
 itemToHtml (Newline _) = br_ []
 itemToHtml (MarkdownBullets b) = bulletsToHtml b
 itemToHtml (MarkdownBlockMath x) = toHtml $ "\\[" <> x <> "\\]"
@@ -57,3 +65,24 @@ inlineToHtml (Tag _) = pure ()
 
 baseToHtml (Unmarked x) = toHtml x
 baseToHtml (InlineMath x) = toHtml $ "\\(" <> x <> "\\)"
+
+calloutClasses :: String -> String
+calloutClasses kind = "callout callout-" <> kind
+
+calloutTitle :: Monad m => String -> [Inline String] -> HtmlT m ()
+calloutTitle kind [] = toHtml (fallbackCalloutTitle kind)
+calloutTitle _ title = foldMap inlineToHtml title
+
+fallbackCalloutTitle :: String -> String
+fallbackCalloutTitle = intercalate " " . fmap capitalize . splitOn '-'
+  where
+    capitalize "" = ""
+    capitalize (x:xs) = toUpper x : xs
+
+splitOn :: Eq a => a -> [a] -> [[a]]
+splitOn delimiter = foldr split [[]]
+  where
+    split x acc@(part:parts)
+      | x == delimiter = [] : acc
+      | otherwise = (x:part) : parts
+    split _ [] = []
