@@ -133,7 +133,13 @@ header n = Header n <$>
 
 markdownItemsBasic = choice . fmap try $ [
     highlight, bold, italic, link, tag, BasicInline <$> base (oneOf "*=" <||> string "[[")
+  , literalSpecial
   ]
+
+-- A lone '*' or '=' that forms no valid marker (highlight/bold/italic) would
+-- otherwise stall the parser, since `unmarked` refuses to start on its own
+-- stop-chars. Consume it as literal text.
+literalSpecial = BasicInline . Unmarked . (:[]) <$> oneOf "*="
 
 base endWith = choice [ inlineMath, unmarked (char '$' <||> endWith) ]
 

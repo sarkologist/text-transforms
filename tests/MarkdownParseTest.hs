@@ -282,6 +282,28 @@ test_complex =
               ])
         ]
     ]
+    , testGroup "literal specials" [
+        testCase "lone equals in prose" $
+          parse (markdown eof) "" "foo = bar" @?= Right (Markdown . fmap Basic $ [
+              BasicInline . Unmarked $ "foo "
+            , BasicInline . Unmarked $ "="
+            , BasicInline . Unmarked $ " bar"
+            ])
+      , testCase "lone star in prose" $
+          parse (markdown eof) "" "a * b" @?= Right (Markdown . fmap Basic $ [
+              BasicInline . Unmarked $ "a "
+            , BasicInline . Unmarked $ "*"
+            , BasicInline . Unmarked $ " b"
+            ])
+      , testCase "equals after math with following italic" $
+          parse (markdown eof) "" "$x$ = *y*" @?= Right (Markdown . fmap Basic $ [
+              BasicInline . InlineMath $ "x"
+            , BasicInline . Unmarked $ " "
+            , BasicInline . Unmarked $ "="
+            , BasicInline . Unmarked $ " "
+            , Italic [Unmarked "y"]
+            ])
+      ]
     , testGroup "everything" [
         testCase "unmarked" $
           parse everything "" "abc" @?= Right (Content [ Markdown [ Basic (BasicInline (Unmarked "abc")) ] ])
